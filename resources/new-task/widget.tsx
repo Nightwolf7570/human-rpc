@@ -35,14 +35,17 @@ function parseInstructions(raw: string): string[] {
 }
 
 const NewTask: React.FC = () => {
-  const { props, isPending } = useWidget<Props>();
-  const [copied, setCopied] = useState(false);
+  const { props, isPending, callTool } = useWidget<Props>();
+  const [loading, setLoading] = useState(false);
 
-  const handleWorkersClick = (taskId: string) => {
-    const cmd = `list_workers for task "${taskId}"`;
-    navigator.clipboard?.writeText(cmd).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleWorkersClick = async (taskId: string) => {
+    setLoading(true);
+    try {
+      await callTool("list_workers", { task_id: taskId });
+    } catch (e) {
+      console.error("Failed to call list_workers:", e);
+    }
+    setLoading(false);
   };
 
   if (isPending) {
@@ -114,17 +117,21 @@ const NewTask: React.FC = () => {
 
         {/* Workers available */}
         <div
-          style={styles.workersCard}
-          onClick={() => handleWorkersClick(task.id)}
+          style={{
+            ...styles.workersCard,
+            opacity: loading ? 0.7 : 1,
+            cursor: loading ? "wait" : "pointer",
+          }}
+          onClick={() => !loading && handleWorkersClick(task.id)}
         >
           <div style={styles.workersCount}>{matchCount}</div>
           <div style={styles.workersInfo}>
             <span style={styles.workersTitle}>workers available</span>
             <span style={styles.workersHint}>
-              {copied ? "✓ Copied! Tell the AI to list workers" : "Click to copy command"}
+              {loading ? "Loading workers..." : "Tap to view & hire"}
             </span>
           </div>
-          <div style={styles.arrowIcon}>{copied ? "✓" : "→"}</div>
+          <div style={styles.arrowIcon}>{loading ? "..." : "→"}</div>
         </div>
       </div>
     </div>
