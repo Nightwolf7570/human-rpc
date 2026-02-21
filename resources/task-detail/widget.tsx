@@ -39,6 +39,13 @@ export const widgetMetadata: WidgetMetadata = {
 
 type Props = z.infer<typeof propSchema>;
 
+function parseInstructions(raw: string): string[] {
+  return raw
+    .split(/[\n•\-\d+\.]/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
 const STATUS_CONFIG: Record<string, { label: string; step: number }> = {
   open: { label: "Open", step: 1 },
   matching: { label: "Matching", step: 1 },
@@ -158,7 +165,14 @@ const TaskDetail: React.FC = () => {
 
         <div style={styles.instructionsSection}>
           <label style={styles.label}>Instructions</label>
-          <p style={styles.instructions}>{task.instructions}</p>
+          <div style={styles.instructionsList}>
+            {parseInstructions(task.instructions).map((step, i) => (
+              <div key={i} style={styles.instructionItem}>
+                <div style={styles.stepNumber}>{i + 1}</div>
+                <span style={styles.stepText}>{step}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div style={styles.divider} />
@@ -487,11 +501,34 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: "0.04em",
     marginBottom: 8,
   },
-  instructions: {
+  instructionsList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+  },
+  instructionItem: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 14,
+  },
+  stepNumber: {
+    width: 26,
+    height: 26,
+    borderRadius: "50%",
+    background: "#000",
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: 600,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  stepText: {
     fontSize: 15,
     color: "#000",
     lineHeight: 1.6,
-    margin: 0,
+    paddingTop: 3,
   },
   budgetGrid: {
     display: "flex",
