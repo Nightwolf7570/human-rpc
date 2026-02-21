@@ -74,9 +74,6 @@ function WorkerCard({ worker, taskId, rank }: { worker: Worker; taskId: string |
         </div>
       </div>
 
-      {/* Bio */}
-      <p style={styles.bio}>{worker.bio}</p>
-
       {/* Skills */}
       <div style={styles.skillsRow}>
         {worker.skills.slice(0, 3).map((skill) => (
@@ -115,10 +112,7 @@ function WorkerCard({ worker, taskId, rank }: { worker: Worker; taskId: string |
 
       {expanded && (
         <div style={styles.expandedSection}>
-          <div style={styles.expandedRow}>
-            <span style={styles.expandedLabel}>Worker ID</span>
-            <span style={styles.expandedValue}>{worker.id}</span>
-          </div>
+          <p style={styles.bio}>{worker.bio}</p>
           <div style={styles.expandedRow}>
             <span style={styles.expandedLabel}>Status</span>
             <span style={{
@@ -127,10 +121,6 @@ function WorkerCard({ worker, taskId, rank }: { worker: Worker; taskId: string |
             }}>
               {worker.available ? "Available now" : "Busy"}
             </span>
-          </div>
-          <div style={styles.expandedRow}>
-            <span style={styles.expandedLabel}>All skills</span>
-            <span style={styles.expandedValue}>{worker.skills.join(", ")}</span>
           </div>
         </div>
       )}
@@ -315,8 +305,8 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: "-0.01em",
   },
   list: {
-    display: "flex",
-    flexDirection: "column",
+    display: "grid",
+    gridTemplateColumns: "repeat(2, 1fr)",
     gap: 16,
   },
   emptyState: {
@@ -337,30 +327,32 @@ const styles: Record<string, React.CSSProperties> = {
   },
   workerCard: {
     background: "#fff",
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: 14,
+    padding: 16,
     boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.03)",
     border: "2px solid transparent",
     transition: "all 0.15s ease",
+    display: "flex",
+    flexDirection: "column",
   },
   workerTop: {
     display: "flex",
     alignItems: "center",
-    gap: 16,
-    marginBottom: 16,
+    gap: 12,
+    marginBottom: 12,
   },
   avatarContainer: {
     position: "relative",
   },
   avatar: {
-    width: 56,
-    height: 56,
+    width: 44,
+    height: 44,
     borderRadius: "50%",
     background: "#F5F5F5",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: 22,
+    fontSize: 16,
   },
   rankBadge: {
     position: "absolute",
@@ -386,7 +378,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
   },
   workerName: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 600,
     color: "#000",
     letterSpacing: "-0.02em",
@@ -413,7 +405,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 2,
   },
   rateAmount: {
-    fontSize: 28,
+    fontSize: 20,
     fontWeight: 700,
     color: "#000",
     letterSpacing: "-0.02em",
@@ -431,14 +423,14 @@ const styles: Record<string, React.CSSProperties> = {
   skillsRow: {
     display: "flex",
     flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 20,
+    gap: 6,
+    marginBottom: 12,
   },
   skillTag: {
-    padding: "6px 14px",
+    padding: "4px 10px",
     background: "#F5F5F5",
-    borderRadius: 20,
-    fontSize: 13,
+    borderRadius: 12,
+    fontSize: 11,
     fontWeight: 500,
     color: "#000",
     letterSpacing: "-0.01em",
@@ -455,7 +447,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-around",
-    padding: "16px 0",
+    padding: "10px 0",
     borderTop: "1px solid #F0F0F0",
     borderBottom: "1px solid #F0F0F0",
   },
