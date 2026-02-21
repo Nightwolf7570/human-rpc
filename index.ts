@@ -203,9 +203,9 @@ server.tool(
   {
     name: "create_task",
     description:
-      "Create a new task for a human to complete. Describes what needs to be done, where, budget (in points), and deadline. Returns a task confirmation widget with ID.",
+      "Create a new task for a human worker to complete. IMPORTANT: The 'instructions' field is shown directly to a HUMAN worker, not an AI. Keep instructions short (3-5 bullet points max), casual, and in plain English. Do NOT write overly detailed robotic instructions. Example: '- Take 10 exterior photos of the house\\n- Include front, back, sides, and roof\\n- Upload to Google Drive and share the link'. Workers are experienced humans who understand context.",
     schema: z.object({
-      title: z.string().describe("Short title of the task (e.g. 'Photograph house exterior at 123 Main St')"),
+      title: z.string().describe("Short title, max 10 words (e.g. 'Photograph house at 123 Main St')"),
       category: z
         .string()
         .describe(
@@ -214,13 +214,13 @@ server.tool(
       location: z.string().describe("Physical address or area where the task takes place"),
       instructions: z
         .string()
-        .describe("Detailed step-by-step instructions for the human worker"),
+        .describe("Brief, casual instructions for a human worker. 3-5 bullet points MAX. Write like you're texting a friend, not programming a robot. Workers are smart humans who don't need every detail spelled out."),
       budget: z
         .number()
         .describe("Budget in points (1 point = ~$1 USD). Workers see this amount."),
       deadline: z
         .string()
-        .describe("Deadline as a human-readable string, e.g. 'Within 4 hours' or '2026-02-22 5pm PST'"),
+        .describe("Simple deadline like 'Today by 5pm' or 'Within 4 hours' or 'Tomorrow morning'"),
     }) as any,
     widget: {
       name: "new-task",
@@ -582,6 +582,78 @@ server.tool(
               `- **${t.id}** | ${t.title} | ${t.status.replace(/_/g, " ")} | ${t.workerName ?? "unassigned"} | ${t.budget} pts`
           )
           .join("\n")
+    );
+  }
+);
+
+// ─── Tool: cancel_task ───────────────────────────────────────────────────────
+
+server.tool(
+  {
+    name: "cancel_task",
+    description: "Cancel an open or hired task. Escrowed points are refunded. Cannot cancel tasks that are already in progress or completed.",
+    schema: z.object({
+      task_id: z.string().describe("Task ID to cancel"),
+      reason: z.string().optional().describe("Reason for cancellation"),
+    }) as any,
+  },
+  async ({ task_id, reason }) => {
+    const task = TASKS.get(task_id);
+    if (!task) return text(`Task "${task_id}" not found.`);
+    if (task.status === "in_progress" || task.status === "completed")
+      return text(`Cannot cancel task ${task_id} — it's already ${task.status.replace(/_/g, " ")}.`);
+
+    const refund = task.pointsEscrowed;
+    task.status = "completed";
+    task.pointsEscrowed = 0;
+    task.timeline.push(
+      { time: now(), event: `Task cancelled${reason ? `: ${reason}` : ""}`, actor: "AI Agent" },
+      { time: now(), event: `${refund} pts refunded`, actor: "System" },
+    );
+
+    return text(
+      `Task **${task_id}** cancelled.\n\n` +
+        `**Refunded:** ${refund} pts\n` +
+        (reason ? `**Reason:** ${reason}` : "")
+    );
+  }
+);
+
+// ─── Tool: rate_worker ───────────────────────────────────────────────────────
+
+server.tool(
+  {
+    name: "rate_worker",
+    description: "Rate a worker after task completion. Provide a 1-5 star rating and optional review.",
+    schema: z.object({
+      task_id: z.string().describe("Completed task ID"),
+      rating: z.number().describe("Rating from 1 to 5 stars"),
+      review: z.string().optional().describe("Optional written review"),
+    }) as any,
+  },
+  async ({ task_id, rating, review }) => {
+    const task = TASKS.get(task_id);
+    if (!task) return text(`Task "${task_id}" not found.`);
+    if (task.status !== "completed")
+      return text(`Can only rate workers on completed tasks. Task ${task_id} is "${task.status}".`);
+
+    const worker = WORKERS.find((w) => w.id === task.workerId);
+    if (worker) {
+      // Update worker's rating (weighted average simulation)
+      worker.rating = +((worker.rating * worker.completedTasks + rating) / (worker.completedTasks + 1)).toFixed(1);
+      worker.completedTasks += 1;
+    }
+
+    task.timeline.push({
+      time: now(),
+      event: `Rated ${task.workerName} ${rating}/5 stars${review ? ` — "${review}"` : ""}`,
+      actor: "AI Agent",
+    });
+
+    return text(
+      `Rated **${task.workerName}** ${"\u2B50".repeat(rating)} (${rating}/5)\n\n` +
+        (review ? `**Review:** "${review}"\n\n` : "") +
+        `Thank you! This helps other AI agents find great workers.`
     );
   }
 );

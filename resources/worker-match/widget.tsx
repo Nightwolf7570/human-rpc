@@ -1,5 +1,6 @@
 import { useWidget, type WidgetMetadata } from "mcp-use/react";
 import { z } from "zod";
+import { useState } from "react";
 
 const workerSchema = z.object({
   id: z.string(),
@@ -31,9 +32,39 @@ export const widgetMetadata: WidgetMetadata = {
 type Props = z.infer<typeof propSchema>;
 type Worker = z.infer<typeof workerSchema>;
 
-function WorkerCard({ worker, taskId }: { worker: Worker; taskId: string | null }) {
+function WorkerCard({ worker, taskId, rank }: { worker: Worker; taskId: string | null; rank: number }) {
+  const [hired, setHired] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [hovered, setHovered] = useState(false);
+
+  const handleHire = () => {
+    if (!taskId) return;
+    setHired(true);
+    // Copy the command to clipboard
+    const cmd = `hire_worker with task_id="${taskId}" and worker_id="${worker.id}"`;
+    navigator.clipboard?.writeText(cmd).catch(() => {});
+  };
+
   return (
-    <div style={styles.workerCard}>
+    <div
+      style={{
+        ...styles.workerCard,
+        borderColor: hired ? "#7c3aed" : hovered ? "#c4b5fd" : "#f3f4f6",
+        background: hired ? "#faf5ff" : "#fff",
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Rank badge */}
+      {rank <= 3 && (
+        <div style={{
+          ...styles.rankBadge,
+          background: rank === 1 ? "#f59e0b" : rank === 2 ? "#9ca3af" : "#cd7f32",
+        }}>
+          #{rank}
+        </div>
+      )}
+
       <div style={styles.workerTop}>
         {/* Avatar */}
         <div style={styles.avatar}>{worker.avatar}</div>
@@ -68,15 +99,57 @@ function WorkerCard({ worker, taskId }: { worker: Worker; taskId: string | null 
 
       {/* Stats row */}
       <div style={styles.statsRow}>
-        <Stat label="Rating" value={`${worker.rating} ★`} color="#f59e0b" />
-        <Stat label="Tasks" value={String(worker.completedTasks)} color="#6b7280" />
-        <Stat label="Response" value={worker.responseTime} color="#6b7280" />
+        <Stat label="Rating" value={`${worker.rating} \u2605`} color="#f59e0b" />
+        <Stat label="Tasks Done" value={worker.completedTasks.toLocaleString()} color="#6b7280" />
+        <Stat label="Response" value={worker.responseTime} color="#22c55e" />
       </div>
 
+      {/* Expandable details */}
+      <div
+        style={styles.expandToggle}
+        onClick={() => setExpanded(!expanded)}
+      >
+        {expanded ? "Hide details \u25B2" : "Show details \u25BC"}
+      </div>
+
+      {expanded && (
+        <div style={styles.expandedDetails}>
+          <div style={styles.detailRow}>
+            <span style={styles.detailLabel}>Worker ID</span>
+            <span style={styles.detailValue}>{worker.id}</span>
+          </div>
+          <div style={styles.detailRow}>
+            <span style={styles.detailLabel}>Availability</span>
+            <span style={{ ...styles.detailValue, color: worker.available ? "#22c55e" : "#ef4444" }}>
+              {worker.available ? "Available now" : "Currently busy"}
+            </span>
+          </div>
+          <div style={styles.detailRow}>
+            <span style={styles.detailLabel}>Reliability</span>
+            <div style={styles.reliabilityBar}>
+              <div style={{ ...styles.reliabilityFill, width: `${Math.min(worker.rating / 5 * 100, 100)}%` }} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hire button */}
-      {taskId && (
-        <div style={styles.hireButton}>
-          Hire {worker.name.split(" ")[0]} — hire_worker({taskId}, {worker.id})
+      {taskId && !hired && (
+        <button
+          onClick={handleHire}
+          style={{
+            ...styles.hireButton,
+            opacity: hovered ? 1 : 0.9,
+            transform: hovered ? "translateY(-1px)" : "none",
+          }}
+        >
+          Hire {worker.name.split(" ")[0]} for this task
+        </button>
+      )}
+
+      {hired && (
+        <div style={styles.hiredConfirm}>
+          {"\u2713"} Tell the AI: "Hire {worker.name.split(" ")[0]}" (command copied!)
         </div>
       )}
     </div>
@@ -94,6 +167,7 @@ function Stat({ label, value, color }: { label: string; value: string; color: st
 
 const WorkerMatch: React.FC = () => {
   const { props, isPending } = useWidget<Props>();
+  const [sortBy, setSortBy] = useState<"rating" | "price" | "tasks">("rating");
 
   if (isPending) {
     return (
@@ -104,6 +178,12 @@ const WorkerMatch: React.FC = () => {
   }
 
   const { workers, taskId, taskTitle, category } = props;
+
+  const sorted = [...workers].sort((a, b) => {
+    if (sortBy === "rating") return b.rating - a.rating;
+    if (sortBy === "price") return a.hourlyRate - b.hourlyRate;
+    return b.completedTasks - a.completedTasks;
+  });
 
   return (
     <div style={styles.container}>
@@ -125,15 +205,35 @@ const WorkerMatch: React.FC = () => {
         </div>
       </div>
 
+      {/* Sort bar */}
+      {workers.length > 1 && (
+        <div style={styles.sortBar}>
+          <span style={styles.sortLabel}>Sort by:</span>
+          {(["rating", "price", "tasks"] as const).map((key) => (
+            <button
+              key={key}
+              onClick={() => setSortBy(key)}
+              style={{
+                ...styles.sortBtn,
+                background: sortBy === key ? "#7c3aed" : "transparent",
+                color: sortBy === key ? "#fff" : "#6b7280",
+              }}
+            >
+              {key === "rating" ? "Top Rated" : key === "price" ? "Lowest Price" : "Most Experienced"}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Worker list */}
       <div style={styles.list}>
-        {workers.length === 0 ? (
+        {sorted.length === 0 ? (
           <div style={styles.empty}>
             No workers available for this category right now. Try broadening your search.
           </div>
         ) : (
-          workers.map((worker) => (
-            <WorkerCard key={worker.id} worker={worker} taskId={taskId} />
+          sorted.map((worker, i) => (
+            <WorkerCard key={worker.id} worker={worker} taskId={taskId} rank={i + 1} />
           ))
         )}
       </div>
@@ -141,9 +241,7 @@ const WorkerMatch: React.FC = () => {
       {/* Footer */}
       {taskId && workers.length > 0 && (
         <div style={styles.footer}>
-          Use <code style={styles.code}>hire_worker</code> with{" "}
-          <code style={styles.code}>task_id="{taskId}"</code> and a{" "}
-          <code style={styles.code}>worker_id</code> to hire
+          Click a "Hire" button above, or tell the AI which worker you want
         </div>
       )}
     </div>
@@ -166,6 +264,25 @@ const styles: Record<string, React.CSSProperties> = {
   headerCount: { textAlign: "center" as const },
   countNum: { fontSize: 28, fontWeight: 800 },
   countLabel: { fontSize: 11, opacity: 0.7 },
+  sortBar: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "10px 16px",
+    background: "#f9fafb",
+    borderLeft: "1px solid #e5e7eb",
+    borderRight: "1px solid #e5e7eb",
+  },
+  sortLabel: { fontSize: 12, color: "#9ca3af", marginRight: 4 },
+  sortBtn: {
+    border: "1px solid #e5e7eb",
+    borderRadius: 999,
+    padding: "4px 12px",
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "all 0.15s",
+  },
   list: {
     background: "#fff",
     border: "1px solid #e5e7eb",
@@ -175,16 +292,27 @@ const styles: Record<string, React.CSSProperties> = {
   },
   empty: { padding: 32, textAlign: "center" as const, color: "#9ca3af", fontSize: 14 },
   workerCard: {
-    border: "1px solid #f3f4f6",
+    border: "2px solid #f3f4f6",
     borderRadius: 12,
     padding: 16,
     marginTop: 12,
-    transition: "border-color 0.2s",
+    transition: "all 0.2s",
+    position: "relative" as const,
+  },
+  rankBadge: {
+    position: "absolute" as const,
+    top: -8,
+    left: 12,
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: 800,
+    padding: "2px 8px",
+    borderRadius: 999,
   },
   workerTop: { display: "flex", alignItems: "center", gap: 12 },
   avatar: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: "50%",
     background: "linear-gradient(135deg, #7c3aed, #a78bfa)",
     color: "#fff",
@@ -192,40 +320,40 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "center",
     fontWeight: 700,
-    fontSize: 15,
+    fontSize: 16,
     flexShrink: 0,
   },
   workerInfo: { flex: 1 },
   workerNameRow: { display: "flex", alignItems: "center", gap: 8 },
-  workerName: { fontSize: 15, fontWeight: 700, color: "#111827" },
+  workerName: { fontSize: 16, fontWeight: 700, color: "#111827" },
   verifiedBadge: {
     background: "#dbeafe",
     color: "#2563eb",
     fontSize: 10,
     fontWeight: 600,
-    padding: "2px 6px",
+    padding: "2px 8px",
     borderRadius: 999,
   },
-  workerLocation: { fontSize: 12, color: "#9ca3af" },
+  workerLocation: { fontSize: 12, color: "#9ca3af", marginTop: 2 },
   rateBox: { textAlign: "right" as const },
-  rateAmount: { fontSize: 20, fontWeight: 800, color: "#111827" },
+  rateAmount: { fontSize: 22, fontWeight: 800, color: "#111827" },
   rateLabel: { fontSize: 11, color: "#9ca3af" },
   bio: {
     fontSize: 13,
     color: "#6b7280",
-    lineHeight: 1.4,
+    lineHeight: 1.5,
     marginTop: 10,
     paddingBottom: 10,
     borderBottom: "1px solid #f3f4f6",
   },
   skillRow: { display: "flex", flexWrap: "wrap" as const, gap: 6, marginTop: 10 },
   skillTag: {
-    background: "#f3f4f6",
-    color: "#374151",
+    background: "#f0fdf4",
+    color: "#16a34a",
     fontSize: 11,
-    fontWeight: 500,
-    padding: "3px 8px",
-    borderRadius: 6,
+    fontWeight: 600,
+    padding: "3px 10px",
+    borderRadius: 999,
   },
   statsRow: {
     display: "flex",
@@ -236,17 +364,66 @@ const styles: Record<string, React.CSSProperties> = {
   },
   stat: { textAlign: "center" as const },
   statValue: { fontSize: 14, fontWeight: 700 },
-  statLabel: { fontSize: 10, color: "#9ca3af", textTransform: "uppercase" as const },
+  statLabel: { fontSize: 10, color: "#9ca3af", textTransform: "uppercase" as const, letterSpacing: 0.5 },
+  expandToggle: {
+    textAlign: "center" as const,
+    fontSize: 12,
+    color: "#7c3aed",
+    cursor: "pointer",
+    padding: "8px 0 4px",
+    fontWeight: 500,
+  },
+  expandedDetails: {
+    background: "#f9fafb",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 4,
+  },
+  detailRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    fontSize: 12,
+    padding: "4px 0",
+  },
+  detailLabel: { color: "#9ca3af" },
+  detailValue: { color: "#111827", fontWeight: 600 },
+  reliabilityBar: {
+    width: 80,
+    height: 6,
+    background: "#e5e7eb",
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  reliabilityFill: {
+    height: "100%",
+    background: "linear-gradient(90deg, #22c55e, #16a34a)",
+    borderRadius: 999,
+  },
   hireButton: {
     marginTop: 12,
     background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
     color: "#fff",
     textAlign: "center" as const,
-    padding: "10px 0",
+    padding: "12px 0",
+    borderRadius: 10,
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: "pointer",
+    border: "none",
+    width: "100%",
+    transition: "all 0.15s",
+    boxShadow: "0 2px 8px rgba(124,58,237,0.3)",
+  },
+  hiredConfirm: {
+    marginTop: 12,
+    background: "#f0fdf4",
+    border: "2px solid #22c55e",
+    color: "#16a34a",
+    textAlign: "center" as const,
+    padding: "12px 0",
     borderRadius: 10,
     fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer",
+    fontWeight: 700,
   },
   footer: {
     background: "#faf5ff",
@@ -257,13 +434,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     color: "#7c3aed",
     textAlign: "center" as const,
-  },
-  code: {
-    background: "#ede9fe",
-    padding: "1px 5px",
-    borderRadius: 4,
-    fontFamily: "monospace",
-    fontSize: 11,
   },
 };
 
