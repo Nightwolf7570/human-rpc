@@ -35,15 +35,15 @@ function parseInstructions(raw: string): string[] {
 }
 
 const NewTask: React.FC = () => {
-  const { props, isPending, callTool } = useWidget<Props>();
+  const { props, isPending, sendFollowUpMessage } = useWidget<Props>();
   const [loading, setLoading] = useState(false);
 
   const handleWorkersClick = async (taskId: string) => {
     setLoading(true);
     try {
-      await callTool("list_workers", { task_id: taskId });
+      await sendFollowUpMessage(`Show me the available workers for task ${taskId}`);
     } catch (e) {
-      console.error("Failed to call list_workers:", e);
+      console.error("Failed to send follow-up message:", e);
     }
     setLoading(false);
   };
