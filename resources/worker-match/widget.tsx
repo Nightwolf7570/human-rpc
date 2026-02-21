@@ -22,6 +22,7 @@ const propSchema = z.object({
   taskId: z.string().nullable(),
   taskTitle: z.string().nullable(),
   category: z.string(),
+  budget: z.number().nullable(),
 });
 
 export const widgetMetadata: WidgetMetadata = {
@@ -151,7 +152,7 @@ const WorkerMatch: React.FC = () => {
     );
   }
 
-  const { workers, taskId, taskTitle, category } = props;
+  const { workers, taskId, taskTitle, category, budget } = props;
 
   const sorted = [...workers].sort((a, b) => {
     if (sortBy === "rating") return b.rating - a.rating;
@@ -168,6 +169,9 @@ const WorkerMatch: React.FC = () => {
           <h1 style={styles.headerTitle}>
             {taskTitle || (category ? category : "All categories")}
           </h1>
+          {budget && (
+            <span style={styles.budgetLabel}>Budget: {budget} tokens</span>
+          )}
         </div>
         <div style={styles.countBadge}>
           <span style={styles.countNumber}>{workers.length}</span>
@@ -269,6 +273,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#000",
     margin: 0,
     letterSpacing: "-0.03em",
+  },
+  budgetLabel: {
+    fontSize: 14,
+    fontWeight: 500,
+    color: "#6B6B6B",
+    marginTop: 4,
   },
   countBadge: {
     width: 56,

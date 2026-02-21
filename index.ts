@@ -269,7 +269,7 @@ server.tool(
 
 // ─── Tool: list_workers ──────────────────────────────────────────────────────
 
-function matchWorkers(category: string, location: string): Worker[] {
+function matchWorkers(category: string, location: string, budget?: number): Worker[] {
   const categorySkillMap: Record<string, string[]> = {
     "Photography & Inspection": ["Photography", "Inspections", "Real Estate"],
     "Delivery & Pickup": ["Delivery", "Errands"],
@@ -289,7 +289,8 @@ function matchWorkers(category: string, location: string): Worker[] {
     const hasSkill =
       relevantSkills.length === 0 ||
       w.skills.some((s) => relevantSkills.includes(s));
-    return hasSkill && w.available;
+    const withinBudget = budget === undefined || w.tokenRate <= budget;
+    return hasSkill && w.available && withinBudget;
   }).sort((a, b) => b.rating - a.rating);
 }
 
@@ -318,6 +319,7 @@ server.tool(
   async ({ task_id, category, location }) => {
     let cat = category ?? "";
     let loc = location ?? "";
+    let budget: number | undefined;
     let task: Task | undefined;
 
     if (task_id) {
@@ -325,10 +327,11 @@ server.tool(
       if (task) {
         cat = cat || task.category;
         loc = loc || task.location;
+        budget = task.budget;
       }
     }
 
-    const workers = matchWorkers(cat, loc);
+    const workers = matchWorkers(cat, loc, budget);
 
     return widget({
       props: {
@@ -336,6 +339,7 @@ server.tool(
         taskId: task_id ?? null,
         taskTitle: task?.title ?? null,
         category: cat,
+        budget: budget ?? null,
       },
       output: text(
         `**${workers.length} workers** available${cat ? ` for "${cat}"` : ""}:\n\n` +
