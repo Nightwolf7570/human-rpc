@@ -1,5 +1,6 @@
 import { useWidget, type WidgetMetadata } from "mcp-use/react";
 import { z } from "zod";
+import { useState } from "react";
 
 const propSchema = z.object({
   task: z.object({
@@ -25,14 +26,24 @@ export const widgetMetadata: WidgetMetadata = {
 type Props = z.infer<typeof propSchema>;
 
 function parseInstructions(raw: string): string[] {
-  return raw
-    .split(/[\n•\-\d+\.]/)
+  // Split on newlines, bullet points, or numbered lists (e.g., "1.", "2.")
+  // But NOT on periods within sentences
+  const lines = raw.split(/\n|(?:^|\s)[•\-]\s|(?:^|\s)\d+\.\s/);
+  return lines
     .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+    .filter((s) => s.length > 10); // Filter out fragments
 }
 
 const NewTask: React.FC = () => {
   const { props, isPending } = useWidget<Props>();
+  const [copied, setCopied] = useState(false);
+
+  const handleWorkersClick = (taskId: string) => {
+    const cmd = `list_workers for task "${taskId}"`;
+    navigator.clipboard?.writeText(cmd).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   if (isPending) {
     return (
@@ -102,13 +113,18 @@ const NewTask: React.FC = () => {
         </div>
 
         {/* Workers available */}
-        <div style={styles.workersCard}>
+        <div
+          style={styles.workersCard}
+          onClick={() => handleWorkersClick(task.id)}
+        >
           <div style={styles.workersCount}>{matchCount}</div>
           <div style={styles.workersInfo}>
             <span style={styles.workersTitle}>workers available</span>
-            <span style={styles.workersHint}>Use list_workers to view matches</span>
+            <span style={styles.workersHint}>
+              {copied ? "✓ Copied! Tell the AI to list workers" : "Click to copy command"}
+            </span>
           </div>
-          <div style={styles.arrowIcon}>→</div>
+          <div style={styles.arrowIcon}>{copied ? "✓" : "→"}</div>
         </div>
       </div>
     </div>

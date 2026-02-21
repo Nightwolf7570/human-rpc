@@ -40,10 +40,12 @@ export const widgetMetadata: WidgetMetadata = {
 type Props = z.infer<typeof propSchema>;
 
 function parseInstructions(raw: string): string[] {
-  return raw
-    .split(/[\n•\-\d+\.]/)
+  // Split on newlines, bullet points, or numbered lists (e.g., "1.", "2.")
+  // But NOT on periods within sentences
+  const lines = raw.split(/\n|(?:^|\s)[•\-]\s|(?:^|\s)\d+\.\s/);
+  return lines
     .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+    .filter((s) => s.length > 10); // Filter out fragments
 }
 
 const STATUS_CONFIG: Record<string, { label: string; step: number }> = {
