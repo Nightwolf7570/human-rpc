@@ -1,7 +1,83 @@
 import { MCPServer, widget, text } from "mcp-use/server";
 import { z } from "zod";
+import { Resend } from "resend";
+import twilio from "twilio";
 
 const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+
+// ─── Notifications ──────────────────────────────────────────────────────────
+
+function getResend(): Resend | null {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return null;
+  return new Resend(key);
+}
+
+function getTwilio() {
+  const sid = process.env.TWILIO_SID;
+  const token = process.env.TWILIO_AUTH;
+  const from = process.env.TWILIO_FROM;
+  if (!sid || !token || !from) return null;
+  return { client: twilio(sid, token), from };
+}
+
+async function notifyWorker(worker: Worker, task: Task): Promise<{ sms: string; email: string }> {
+  const results = { sms: "skipped", email: "skipped" };
+
+  // SMS via Twilio
+  const tw = getTwilio();
+  if (tw && worker.phone) {
+    try {
+      await tw.client.messages.create({
+        body: `HumanRPC: You've been hired!\n\nTask: ${task.title}\nLocation: ${task.location}\nDeadline: ${task.deadline}\nBudget: ${task.budget} pts\n\nInstructions:\n${task.instructions}\n\nTask ID: ${task.id}`,
+        from: tw.from,
+        to: worker.phone,
+      });
+      results.sms = `sent to ${worker.phone}`;
+    } catch (err: any) {
+      results.sms = `failed: ${err.message ?? "unknown"}`;
+    }
+  }
+
+  // Email via Resend
+  const resend = getResend();
+  if (resend && worker.email) {
+    try {
+      await resend.emails.send({
+        from: "HumanRPC <onboarding@resend.dev>",
+        to: [worker.email],
+        subject: `You're hired: ${task.title}`,
+        html: `
+          <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px">
+            <h2 style="color:#111;margin-bottom:4px">You've been hired!</h2>
+            <p style="color:#666;font-size:14px;margin-top:0">A new task is waiting for you on HumanRPC.</p>
+            <div style="background:#fafafa;border-radius:10px;padding:20px;margin:20px 0">
+              <div style="font-size:18px;font-weight:700;color:#111;margin-bottom:12px">${task.title}</div>
+              <div style="font-size:13px;color:#666;margin-bottom:6px"><strong>Category:</strong> ${task.category}</div>
+              <div style="font-size:13px;color:#666;margin-bottom:6px"><strong>Location:</strong> ${task.location}</div>
+              <div style="font-size:13px;color:#666;margin-bottom:6px"><strong>Deadline:</strong> ${task.deadline}</div>
+              <div style="font-size:13px;color:#666;margin-bottom:6px"><strong>Budget:</strong> ${task.budget} points</div>
+            </div>
+            <div style="margin-bottom:20px">
+              <div style="font-size:12px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Instructions</div>
+              <div style="font-size:14px;color:#333;line-height:1.6;white-space:pre-line">${task.instructions}</div>
+            </div>
+            <div style="text-align:center;padding:16px;background:#111;border-radius:8px">
+              <span style="color:#fff;font-weight:700;font-size:14px">Task ID: ${task.id}</span>
+            </div>
+            <p style="font-size:12px;color:#aaa;text-align:center;margin-top:20px">HumanRPC — Remote Procedure Calls to Real Humans</p>
+          </div>`,
+      });
+      results.email = `sent to ${worker.email}`;
+    } catch (err: any) {
+      results.email = `failed: ${err.message ?? "unknown"}`;
+    }
+  }
+
+  return results;
+}
+
+// ─── Server ─────────────────────────────────────────────────────────────────
 
 const server = new MCPServer({
   name: "human-rpc",
@@ -18,6 +94,8 @@ const server = new MCPServer({
 interface Worker {
   id: string;
   name: string;
+  email: string;
+  phone: string;
   avatar: string;
   rating: number;
   completedTasks: number;
@@ -30,120 +108,8 @@ interface Worker {
   verified: boolean;
 }
 
-const WORKERS: Worker[] = [
-  {
-    id: "w-001",
-    name: "Sarah Kim",
-    avatar: "SK",
-    rating: 4.9,
-    completedTasks: 347,
-    skills: ["Photography", "Real Estate", "Inspections"],
-    location: "San Francisco, CA",
-    hourlyRate: 35,
-    available: true,
-    responseTime: "< 15 min",
-    bio: "Professional photographer with 5 years of real estate experience. Own DSLR + drone.",
-    verified: true,
-  },
-  {
-    id: "w-002",
-    name: "Marcus Thompson",
-    avatar: "MT",
-    rating: 4.8,
-    completedTasks: 512,
-    skills: ["Delivery", "Errands", "Queue Waiting", "Shopping"],
-    location: "San Francisco, CA",
-    hourlyRate: 25,
-    available: true,
-    responseTime: "< 10 min",
-    bio: "Reliable runner. Have a car and bike. Available most days 8am-8pm.",
-    verified: true,
-  },
-  {
-    id: "w-003",
-    name: "Priya Sharma",
-    avatar: "PS",
-    rating: 4.7,
-    completedTasks: 189,
-    skills: ["Marketing", "Flyering", "Event Staffing", "Street Teams"],
-    location: "Oakland, CA",
-    hourlyRate: 28,
-    available: true,
-    responseTime: "< 30 min",
-    bio: "Marketing student at UC Berkeley. Great with people, always on time.",
-    verified: true,
-  },
-  {
-    id: "w-004",
-    name: "Jake Rivera",
-    avatar: "JR",
-    rating: 4.6,
-    completedTasks: 94,
-    skills: ["Installation", "Hardware", "Assembly", "Signage"],
-    location: "San Jose, CA",
-    hourlyRate: 45,
-    available: true,
-    responseTime: "< 1 hour",
-    bio: "Handyman with full tool kit. Electrical, mounting, assembly, you name it.",
-    verified: true,
-  },
-  {
-    id: "w-005",
-    name: "Aisha Morales",
-    avatar: "AM",
-    rating: 4.9,
-    completedTasks: 276,
-    skills: ["Mystery Shopping", "Research", "Inspections", "Documentation"],
-    location: "Palo Alto, CA",
-    hourlyRate: 30,
-    available: false,
-    responseTime: "< 2 hours",
-    bio: "Detail-oriented researcher. Excellent written reports with photo evidence.",
-    verified: true,
-  },
-  {
-    id: "w-006",
-    name: "Tom Walsh",
-    avatar: "TW",
-    rating: 4.5,
-    completedTasks: 631,
-    skills: ["Delivery", "Errands", "Queue Waiting", "Notarization"],
-    location: "San Francisco, CA",
-    hourlyRate: 22,
-    available: true,
-    responseTime: "< 5 min",
-    bio: "Full-time gig worker. Fastest response time on the platform. Never missed a deadline.",
-    verified: true,
-  },
-  {
-    id: "w-007",
-    name: "Luna Chen",
-    avatar: "LC",
-    rating: 4.8,
-    completedTasks: 158,
-    skills: ["Photography", "Videography", "Social Media", "Marketing"],
-    location: "Berkeley, CA",
-    hourlyRate: 40,
-    available: true,
-    responseTime: "< 20 min",
-    bio: "Content creator & photographer. Specialize in property tours and product shots.",
-    verified: true,
-  },
-  {
-    id: "w-008",
-    name: "Diego Fuentes",
-    avatar: "DF",
-    rating: 4.4,
-    completedTasks: 82,
-    skills: ["Billboard", "Advertising", "Signage", "Negotiations"],
-    location: "San Francisco, CA",
-    hourlyRate: 50,
-    available: true,
-    responseTime: "< 1 hour",
-    bio: "Former ad sales rep. Know every billboard vendor in the Bay Area.",
-    verified: true,
-  },
-];
+const WORKERS: Worker[] = [];
+let workerSeq = 0;
 
 type TaskStatus =
   | "open"
@@ -196,6 +162,56 @@ function generateId(): string {
 function now(): string {
   return new Date().toISOString();
 }
+
+// ─── Tool: add_worker ────────────────────────────────────────────────────────
+
+server.tool(
+  {
+    name: "add_worker",
+    description:
+      "Register a new worker on the platform. Requires name, email, and phone number so they can receive task notifications via SMS and email.",
+    schema: z.object({
+      name: z.string().describe("Worker's full name"),
+      email: z.string().describe("Worker's email address (required for notifications)"),
+      phone: z.string().describe("Worker's phone number with country code (e.g. +14155551234)"),
+      skills: z.array(z.string()).describe("List of skills (e.g. ['Photography', 'Delivery'])"),
+      location: z.string().describe("Worker's city/area"),
+      hourly_rate: z.number().describe("Hourly rate in USD"),
+      bio: z.string().describe("Short bio (1-2 sentences)"),
+    }) as any,
+  },
+  async ({ name, email, phone, skills, location, hourly_rate, bio }) => {
+    const id = `w-${String(++workerSeq).padStart(3, "0")}`;
+    const initials = name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
+    const worker: Worker = {
+      id,
+      name,
+      email,
+      phone,
+      avatar: initials,
+      rating: 5.0,
+      completedTasks: 0,
+      skills,
+      location,
+      hourlyRate: hourly_rate,
+      available: true,
+      responseTime: "New",
+      bio,
+      verified: false,
+    };
+    WORKERS.push(worker);
+
+    return text(
+      `Worker **${name}** registered!\n\n` +
+        `**ID:** ${id}\n` +
+        `**Email:** ${email}\n` +
+        `**Phone:** ${phone}\n` +
+        `**Skills:** ${skills.join(", ")}\n` +
+        `**Rate:** $${hourly_rate}/hr\n\n` +
+        `They will receive SMS + email notifications when hired for tasks.`
+    );
+  }
+);
 
 // ─── Tool: create_task ───────────────────────────────────────────────────────
 
@@ -357,7 +373,7 @@ server.tool(
   {
     name: "hire_worker",
     description:
-      "Hire a specific worker for a task. The worker is notified and the task moves to 'hired' status. Points are held in escrow until task completion.",
+      "Hire a specific worker for a task. The worker is notified via SMS and email. The task moves to 'hired' status. Points are held in escrow until task completion.",
     schema: z.object({
       task_id: z.string().describe("Task ID"),
       worker_id: z.string().describe("Worker ID to hire (e.g. w-001)"),
@@ -378,16 +394,30 @@ server.tool(
     task.workerName = worker.name;
     task.timeline.push(
       { time: now(), event: `${worker.name} hired for the task`, actor: "AI Agent" },
-      { time: now(), event: `Notification sent to ${worker.name}`, actor: "System" }
     );
+
+    // Send notifications
+    const notify = await notifyWorker(worker, task);
+
+    if (notify.sms !== "skipped") {
+      task.timeline.push({ time: now(), event: `SMS ${notify.sms}`, actor: "System" });
+    }
+    if (notify.email !== "skipped") {
+      task.timeline.push({ time: now(), event: `Email ${notify.email}`, actor: "System" });
+    }
+    if (notify.sms === "skipped" && notify.email === "skipped") {
+      task.timeline.push({ time: now(), event: `Notification sent to ${worker.name}`, actor: "System" });
+    }
 
     return text(
       `**${worker.name}** has been hired for task **${task_id}**!\n\n` +
         `**Task:** ${task.title}\n` +
         `**Worker:** ${worker.name} (${worker.rating} stars, ${worker.completedTasks} completed)\n` +
         `**Budget:** ${task.budget} pts (escrowed)\n` +
-        `**Response time:** ${worker.responseTime}\n\n` +
-        `The worker has been notified. Use \`get_task_status\` to track progress.`
+        `**Response time:** ${worker.responseTime}\n` +
+        `**SMS:** ${notify.sms}\n` +
+        `**Email:** ${notify.email}\n\n` +
+        `Use \`get_task_status\` to track progress.`
     );
   }
 );
@@ -523,16 +553,6 @@ server.tool(
     if (!task)
       return text(`Task "${task_id}" not found.`);
 
-    // Simulate progress for demo
-    if (task.status === "hired") {
-      task.status = "in_progress";
-      task.timeline.push({
-        time: now(),
-        event: `${task.workerName} started working on the task`,
-        actor: task.workerName ?? "Worker",
-      });
-    }
-
     const worker = task.workerId ? WORKERS.find((w) => w.id === task.workerId) : null;
 
     return widget({
@@ -639,7 +659,6 @@ server.tool(
 
     const worker = WORKERS.find((w) => w.id === task.workerId);
     if (worker) {
-      // Update worker's rating (weighted average simulation)
       worker.rating = +((worker.rating * worker.completedTasks + rating) / (worker.completedTasks + 1)).toFixed(1);
       worker.completedTasks += 1;
     }
