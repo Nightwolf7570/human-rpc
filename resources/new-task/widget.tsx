@@ -1,6 +1,6 @@
 import { useWidget, type WidgetMetadata } from "mcp-use/react";
 import { z } from "zod";
-import { useState } from "react";
+import { useState, useRef, useLayoutEffect } from "react";
 
 const propSchema = z.object({
   task: z.object({
@@ -35,8 +35,16 @@ function parseInstructions(raw: string): string[] {
 }
 
 const NewTask: React.FC = () => {
-  const { props, isPending, sendFollowUpMessage } = useWidget<Props>();
+  const { props, isPending, sendFollowUpMessage, notifyIntrinsicHeight } = useWidget<Props>();
   const [loading, setLoading] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (containerRef.current) {
+      const height = containerRef.current.scrollHeight;
+      notifyIntrinsicHeight(height);
+    }
+  });
 
   const handleWorkersClick = async (taskId: string) => {
     setLoading(true);
@@ -60,7 +68,7 @@ const NewTask: React.FC = () => {
   const { task, matchCount } = props;
 
   return (
-    <div style={styles.container}>
+    <div ref={containerRef} style={styles.container}>
       {/* Success indicator */}
       <div style={styles.successBanner}>
         <div style={styles.checkIcon}>

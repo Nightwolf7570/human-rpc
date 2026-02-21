@@ -1,5 +1,6 @@
 import { useWidget, type WidgetMetadata } from "mcp-use/react";
 import { z } from "zod";
+import { useRef, useLayoutEffect } from "react";
 
 const propSchema = z.object({
   task: z.object({
@@ -62,7 +63,15 @@ const STATUS_CONFIG: Record<string, { label: string; step: number }> = {
 const STEPS = ["Created", "Hired", "Working", "Review", "Done"];
 
 const TaskDetail: React.FC = () => {
-  const { props, isPending } = useWidget<Props>();
+  const { props, isPending, notifyIntrinsicHeight } = useWidget<Props>();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (containerRef.current) {
+      const height = containerRef.current.scrollHeight;
+      notifyIntrinsicHeight(height);
+    }
+  });
 
   if (isPending) {
     return (
@@ -79,7 +88,7 @@ const TaskDetail: React.FC = () => {
   const isDisputed = task.status === "disputed";
 
   return (
-    <div style={styles.container}>
+    <div ref={containerRef} style={styles.container}>
       {/* Status pill */}
       <div style={styles.statusRow}>
         <div style={{

@@ -1,6 +1,6 @@
 import { useWidget, type WidgetMetadata } from "mcp-use/react";
 import { z } from "zod";
-import { useState } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 
 const workerSchema = z.object({
   id: z.string(),
@@ -140,8 +140,16 @@ function WorkerCard({ worker, taskId, rank }: { worker: Worker; taskId: string |
 }
 
 const WorkerMatch: React.FC = () => {
-  const { props, isPending } = useWidget<Props>();
+  const { props, isPending, notifyIntrinsicHeight } = useWidget<Props>();
   const [sortBy, setSortBy] = useState<"rating" | "price" | "tasks">("rating");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (containerRef.current) {
+      const height = containerRef.current.scrollHeight;
+      notifyIntrinsicHeight(height);
+    }
+  });
 
   if (isPending) {
     return (
@@ -161,7 +169,7 @@ const WorkerMatch: React.FC = () => {
   });
 
   return (
-    <div style={styles.container}>
+    <div ref={containerRef} style={styles.container}>
       {/* Header */}
       <div style={styles.header}>
         <div style={styles.headerContent}>
