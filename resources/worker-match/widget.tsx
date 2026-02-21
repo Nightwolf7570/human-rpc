@@ -10,7 +10,7 @@ const workerSchema = z.object({
   completedTasks: z.number(),
   skills: z.array(z.string()),
   location: z.string(),
-  hourlyRate: z.number(),
+  tokenRate: z.number(),
   available: z.boolean(),
   responseTime: z.string(),
   bio: z.string(),
@@ -22,6 +22,7 @@ const propSchema = z.object({
   taskId: z.string().nullable(),
   taskTitle: z.string().nullable(),
   category: z.string(),
+  budget: z.number().nullable(),
 });
 
 export const widgetMetadata: WidgetMetadata = {
@@ -49,38 +50,34 @@ function WorkerCard({ worker, taskId, rank }: { worker: Worker; taskId: string |
       borderColor: hired ? "#000" : "transparent",
       background: hired ? "#FAFAFA" : "#fff",
     }}>
-      {/* Top row */}
-      <div style={styles.workerTop}>
-        <div style={styles.avatarContainer}>
-          <div style={styles.avatar}>{worker.avatar}</div>
-          {rank <= 3 && (
-            <div style={styles.rankBadge}>#{rank}</div>
-          )}
+      {/* Header with name and price */}
+      <div style={styles.cardHeader}>
+        <div style={styles.nameSection}>
+          <span style={styles.workerName}>{worker.name}</span>
+          {worker.verified && <span style={styles.verifiedBadge}>✓</span>}
         </div>
-
-        <div style={styles.workerInfo}>
-          <div style={styles.nameRow}>
-            <span style={styles.workerName}>{worker.name}</span>
-            {worker.verified && (
-              <span style={styles.verifiedBadge}>✓</span>
-            )}
-          </div>
-          <span style={styles.location}>{worker.location}</span>
-        </div>
-
         <div style={styles.rateContainer}>
-          <span style={styles.rateAmount}>${worker.hourlyRate}</span>
-          <span style={styles.rateUnit}>/hr</span>
+          <span style={styles.rateAmount}>{worker.tokenRate}</span>
+          <span style={styles.rateUnit}>tokens</span>
         </div>
       </div>
 
-      {/* Skills */}
+      {/* Avatar and location row */}
+      <div style={styles.avatarRow}>
+        <div style={styles.avatarContainer}>
+          <div style={styles.avatar}>{worker.avatar}</div>
+          {rank <= 3 && <div style={styles.rankBadge}>#{rank}</div>}
+        </div>
+        <span style={styles.location}>{worker.location}</span>
+      </div>
+
+      {/* Skills - only show 2 */}
       <div style={styles.skillsRow}>
-        {worker.skills.slice(0, 3).map((skill) => (
+        {worker.skills.slice(0, 2).map((skill) => (
           <span key={skill} style={styles.skillTag}>{skill}</span>
         ))}
-        {worker.skills.length > 3 && (
-          <span style={styles.moreSkills}>+{worker.skills.length - 3}</span>
+        {worker.skills.length > 2 && (
+          <span style={styles.moreSkills}>+{worker.skills.length - 2}</span>
         )}
       </div>
 
@@ -155,11 +152,11 @@ const WorkerMatch: React.FC = () => {
     );
   }
 
-  const { workers, taskId, taskTitle, category } = props;
+  const { workers, taskId, taskTitle, category, budget } = props;
 
   const sorted = [...workers].sort((a, b) => {
     if (sortBy === "rating") return b.rating - a.rating;
-    if (sortBy === "price") return a.hourlyRate - b.hourlyRate;
+    if (sortBy === "price") return a.tokenRate - b.tokenRate;
     return b.completedTasks - a.completedTasks;
   });
 
@@ -172,6 +169,9 @@ const WorkerMatch: React.FC = () => {
           <h1 style={styles.headerTitle}>
             {taskTitle || (category ? category : "All categories")}
           </h1>
+          {budget && (
+            <span style={styles.budgetLabel}>Budget: {budget} tokens</span>
+          )}
         </div>
         <div style={styles.countBadge}>
           <span style={styles.countNumber}>{workers.length}</span>
@@ -274,6 +274,12 @@ const styles: Record<string, React.CSSProperties> = {
     margin: 0,
     letterSpacing: "-0.03em",
   },
+  budgetLabel: {
+    fontSize: 14,
+    fontWeight: 500,
+    color: "#6B6B6B",
+    marginTop: 4,
+  },
   countBadge: {
     width: 56,
     height: 56,
@@ -328,126 +334,142 @@ const styles: Record<string, React.CSSProperties> = {
   workerCard: {
     background: "#fff",
     borderRadius: 14,
-    padding: 16,
+    padding: 14,
     boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.03)",
     border: "2px solid transparent",
     transition: "all 0.15s ease",
     display: "flex",
     flexDirection: "column",
   },
-  workerTop: {
+  cardHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  nameSection: {
     display: "flex",
     alignItems: "center",
-    gap: 12,
-    marginBottom: 12,
+    gap: 6,
+    flex: 1,
+    minWidth: 0,
+  },
+  avatarRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 10,
   },
   avatarContainer: {
     position: "relative",
+    flexShrink: 0,
   },
   avatar: {
-    width: 44,
-    height: 44,
+    width: 36,
+    height: 36,
     borderRadius: "50%",
     background: "#F5F5F5",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: 16,
+    fontSize: 13,
   },
   rankBadge: {
     position: "absolute",
-    top: -4,
-    right: -4,
-    width: 22,
-    height: 22,
+    top: -3,
+    right: -3,
+    width: 18,
+    height: 18,
     borderRadius: "50%",
     background: "#000",
     color: "#fff",
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: 700,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
   },
-  workerInfo: {
-    flex: 1,
-  },
-  nameRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-  },
   workerName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 600,
     color: "#000",
     letterSpacing: "-0.02em",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
   verifiedBadge: {
-    width: 20,
-    height: 20,
+    width: 16,
+    height: 16,
     borderRadius: "50%",
     background: "#000",
     color: "#fff",
-    fontSize: 11,
+    fontSize: 9,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
   location: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#6B6B6B",
-    marginTop: 2,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
   rateContainer: {
     display: "flex",
     alignItems: "baseline",
-    gap: 2,
+    gap: 1,
+    flexShrink: 0,
   },
   rateAmount: {
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: 700,
     color: "#000",
     letterSpacing: "-0.02em",
   },
   rateUnit: {
-    fontSize: 14,
+    fontSize: 12,
     color: "#6B6B6B",
   },
   bio: {
-    fontSize: 15,
+    fontSize: 12,
     color: "#6B6B6B",
-    lineHeight: 1.5,
-    margin: "0 0 16px 0",
+    lineHeight: 1.4,
+    margin: "0 0 8px 0",
   },
   skillsRow: {
     display: "flex",
-    flexWrap: "wrap",
-    gap: 6,
-    marginBottom: 12,
+    flexWrap: "nowrap",
+    gap: 4,
+    marginBottom: 10,
+    overflow: "hidden",
   },
   skillTag: {
-    padding: "4px 10px",
+    padding: "3px 8px",
     background: "#F5F5F5",
-    borderRadius: 12,
-    fontSize: 11,
+    borderRadius: 10,
+    fontSize: 10,
     fontWeight: 500,
     color: "#000",
     letterSpacing: "-0.01em",
+    whiteSpace: "nowrap",
   },
   moreSkills: {
-    padding: "6px 14px",
+    padding: "3px 8px",
     background: "#F5F5F5",
-    borderRadius: 20,
-    fontSize: 13,
+    borderRadius: 10,
+    fontSize: 10,
     fontWeight: 500,
     color: "#6B6B6B",
+    whiteSpace: "nowrap",
   },
   statsRow: {
     display: "flex",
     alignItems: "center",
-    justifyContent: "space-around",
-    padding: "10px 0",
+    justifyContent: "space-between",
+    padding: "8px 0",
     borderTop: "1px solid #F0F0F0",
     borderBottom: "1px solid #F0F0F0",
   },
@@ -455,32 +477,33 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    gap: 2,
+    gap: 1,
+    flex: 1,
   },
   statValue: {
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: 700,
     color: "#000",
     letterSpacing: "-0.01em",
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: 500,
     color: "#9E9E9E",
     textTransform: "uppercase",
-    letterSpacing: "0.04em",
+    letterSpacing: "0.02em",
   },
   statDivider: {
     width: 1,
-    height: 32,
+    height: 24,
     background: "#F0F0F0",
   },
   expandButton: {
     width: "100%",
-    padding: "12px",
+    padding: "8px",
     background: "transparent",
     border: "none",
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: 500,
     color: "#6B6B6B",
     cursor: "pointer",
@@ -488,37 +511,36 @@ const styles: Record<string, React.CSSProperties> = {
   },
   expandedSection: {
     background: "#FAFAFA",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
     display: "flex",
     flexDirection: "column",
-    gap: 12,
+    gap: 8,
   },
   expandedRow: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
   },
   expandedLabel: {
-    fontSize: 13,
+    fontSize: 11,
     color: "#6B6B6B",
   },
   expandedValue: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: 500,
     color: "#000",
     textAlign: "right",
-    maxWidth: "60%",
   },
   hireButton: {
     width: "100%",
-    padding: "18px 24px",
+    padding: "12px 16px",
     background: "#000",
     color: "#fff",
     border: "none",
-    borderRadius: 14,
-    fontSize: 16,
+    borderRadius: 10,
+    fontSize: 13,
     fontWeight: 600,
     cursor: "pointer",
     transition: "transform 0.1s ease, opacity 0.1s ease",
@@ -528,21 +550,21 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    padding: "18px 24px",
+    gap: 8,
+    padding: "12px 16px",
     background: "#F5F5F5",
-    borderRadius: 14,
-    fontSize: 15,
+    borderRadius: 10,
+    fontSize: 12,
     fontWeight: 500,
     color: "#000",
   },
   hiredCheck: {
-    width: 24,
-    height: 24,
+    width: 20,
+    height: 20,
     borderRadius: "50%",
     background: "#000",
     color: "#fff",
-    fontSize: 12,
+    fontSize: 10,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
