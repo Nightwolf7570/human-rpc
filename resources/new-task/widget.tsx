@@ -150,9 +150,10 @@ function InfoItem({ label, value, accent }: { label: string; value: string; acce
 const styles: Record<string, React.CSSProperties> = {
   container: {
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    maxWidth: 480,
-    margin: "0 auto",
-    padding: 24,
+    width: "100%",
+    padding: 16,
+    boxSizing: "border-box",
+    overflow: "visible",
   },
   loadingContainer: {
     display: "flex",
