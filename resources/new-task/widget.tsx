@@ -24,113 +24,276 @@ export const widgetMetadata: WidgetMetadata = {
 
 type Props = z.infer<typeof propSchema>;
 
-function parseInstructions(raw: string): string[] {
-  return raw.split(/[-\n\u2022]/).map((s) => s.trim()).filter((s) => s.length > 0);
-}
-
 const NewTask: React.FC = () => {
   const { props, isPending } = useWidget<Props>();
 
   if (isPending) {
-    return <div style={{ padding: 48, textAlign: "center", color: "#a0a0a0", fontFamily: f }}>Creating task...</div>;
+    return (
+      <div style={styles.loadingContainer}>
+        <div style={styles.spinner} />
+        <span style={styles.loadingText}>Creating task</span>
+      </div>
+    );
   }
 
   const { task, matchCount } = props;
-  const bullets = parseInstructions(task.instructions);
 
   return (
-    <div style={card}>
-      {/* Top */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e" }} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#888" }}>Task Created</span>
-          <span style={{ fontSize: 12, color: "#bbb", fontFamily: "monospace" }}>{task.id}</span>
+    <div style={styles.container}>
+      {/* Success indicator */}
+      <div style={styles.successBanner}>
+        <div style={styles.checkIcon}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M5 13l4 4L19 7" stroke="#000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
         </div>
-        <span style={{ fontSize: 11, fontWeight: 600, color: "#22c55e", background: "#f0fdf4", padding: "3px 10px", borderRadius: 4 }}>Open</span>
+        <span style={styles.successText}>Task created</span>
       </div>
 
-      {/* Title */}
-      <div style={{ fontSize: 20, fontWeight: 700, color: "#111", letterSpacing: -0.3, marginBottom: 16, lineHeight: 1.3 }}>
-        {task.title}
-      </div>
+      {/* Main card */}
+      <div style={styles.card}>
+        {/* Task title */}
+        <h1 style={styles.title}>{task.title}</h1>
 
-      {/* Meta */}
-      <div style={{ display: "flex", gap: 20, marginBottom: 20, fontSize: 13, color: "#666" }}>
-        <div>
-          <div style={label}>Category</div>
-          <div>{task.category}</div>
-        </div>
-        <div>
-          <div style={label}>Location</div>
-          <div>{task.location}</div>
-        </div>
-        <div>
-          <div style={label}>Deadline</div>
-          <div>{task.deadline}</div>
-        </div>
-      </div>
+        {/* Task ID */}
+        <p style={styles.taskId}>{task.id}</p>
 
-      {/* Divider */}
-      <div style={divider} />
+        {/* Divider */}
+        <div style={styles.divider} />
 
-      {/* Instructions */}
-      <div style={{ ...label, marginBottom: 10 }}>Instructions</div>
-      <div style={{ display: "flex", flexDirection: "column" as const, gap: 8, marginBottom: 20 }}>
-        {bullets.map((b, i) => (
-          <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-            <span style={{ fontSize: 12, color: "#bbb", fontWeight: 600, minWidth: 18, fontFamily: "monospace" }}>{i + 1}.</span>
-            <span style={{ fontSize: 14, color: "#333", lineHeight: 1.5 }}>{b}</span>
+        {/* Info grid */}
+        <div style={styles.infoGrid}>
+          <InfoItem label="Category" value={task.category} />
+          <InfoItem label="Location" value={task.location} />
+          <InfoItem label="Deadline" value={task.deadline} />
+          <InfoItem label="Budget" value={`${task.budget} pts`} accent />
+        </div>
+
+        {/* Divider */}
+        <div style={styles.divider} />
+
+        {/* Instructions */}
+        <div style={styles.section}>
+          <label style={styles.label}>Instructions</label>
+          <p style={styles.instructions}>{task.instructions}</p>
+        </div>
+
+        {/* Escrow notice */}
+        <div style={styles.escrowCard}>
+          <div style={styles.escrowLeft}>
+            <span style={styles.escrowAmount}>{task.pointsEscrowed}</span>
+            <span style={styles.escrowUnit}>pts in escrow</span>
           </div>
-        ))}
-      </div>
-
-      {/* Divider */}
-      <div style={divider} />
-
-      {/* Bottom */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: "#111" }}>{task.pointsEscrowed}<span style={{ fontSize: 13, fontWeight: 500, color: "#999", marginLeft: 4 }}>pts escrowed</span></div>
+          <span style={styles.escrowNote}>Released on approval</span>
         </div>
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "8px 16px",
-          background: "#f5f5f5",
-          borderRadius: 8,
-        }}>
-          <span style={{ fontSize: 18, fontWeight: 700, color: "#111" }}>{matchCount}</span>
-          <span style={{ fontSize: 13, color: "#888" }}>workers ready</span>
+
+        {/* Workers available */}
+        <div style={styles.workersCard}>
+          <div style={styles.workersCount}>{matchCount}</div>
+          <div style={styles.workersInfo}>
+            <span style={styles.workersTitle}>workers available</span>
+            <span style={styles.workersHint}>Use list_workers to view matches</span>
+          </div>
+          <div style={styles.arrowIcon}>→</div>
         </div>
       </div>
     </div>
   );
 };
 
-const f = "'Inter', system-ui, -apple-system, sans-serif";
-const card: React.CSSProperties = {
-  fontFamily: f,
-  maxWidth: 480,
-  margin: "0 auto",
-  background: "#fff",
-  borderRadius: 12,
-  border: "1px solid #e8e8e8",
-  padding: "24px 28px",
-};
-const label: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: "#aaa",
-  textTransform: "uppercase" as const,
-  letterSpacing: 0.6,
-  marginBottom: 2,
-};
-const divider: React.CSSProperties = {
-  height: 1,
-  background: "#f0f0f0",
-  margin: "0 0 20px",
+function InfoItem({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div style={styles.infoItem}>
+      <span style={styles.infoLabel}>{label}</span>
+      <span style={{ ...styles.infoValue, ...(accent && styles.infoValueAccent) }}>{value}</span>
+    </div>
+  );
+}
+
+const styles: Record<string, React.CSSProperties> = {
+  container: {
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    maxWidth: 480,
+    margin: "0 auto",
+    padding: 24,
+  },
+  loadingContainer: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 80,
+    gap: 16,
+  },
+  spinner: {
+    width: 24,
+    height: 24,
+    border: "2px solid #E5E5E5",
+    borderTopColor: "#000",
+    borderRadius: "50%",
+    animation: "spin 0.8s linear infinite",
+  },
+  loadingText: {
+    fontSize: 15,
+    color: "#6B6B6B",
+    letterSpacing: "-0.01em",
+  },
+  successBanner: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 24,
+  },
+  checkIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: "50%",
+    background: "#E8F5E9",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  successText: {
+    fontSize: 17,
+    fontWeight: 600,
+    color: "#000",
+    letterSpacing: "-0.02em",
+  },
+  card: {
+    background: "#fff",
+    borderRadius: 16,
+    padding: 32,
+    boxShadow: "0 1px 3px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.04)",
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 700,
+    color: "#000",
+    margin: 0,
+    letterSpacing: "-0.03em",
+    lineHeight: 1.2,
+  },
+  taskId: {
+    fontSize: 14,
+    color: "#6B6B6B",
+    margin: "8px 0 0 0",
+    fontFamily: "monospace",
+  },
+  divider: {
+    height: 1,
+    background: "#F0F0F0",
+    margin: "24px 0",
+  },
+  infoGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 24,
+  },
+  infoItem: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  infoLabel: {
+    fontSize: 12,
+    fontWeight: 500,
+    color: "#6B6B6B",
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+  },
+  infoValue: {
+    fontSize: 16,
+    fontWeight: 500,
+    color: "#000",
+    letterSpacing: "-0.01em",
+  },
+  infoValueAccent: {
+    fontWeight: 700,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  label: {
+    display: "block",
+    fontSize: 12,
+    fontWeight: 500,
+    color: "#6B6B6B",
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+    marginBottom: 8,
+  },
+  instructions: {
+    fontSize: 16,
+    color: "#000",
+    lineHeight: 1.6,
+    margin: 0,
+    letterSpacing: "-0.01em",
+  },
+  escrowCard: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    background: "#FAFAFA",
+    borderRadius: 12,
+    padding: "16px 20px",
+    marginBottom: 12,
+  },
+  escrowLeft: {
+    display: "flex",
+    alignItems: "baseline",
+    gap: 6,
+  },
+  escrowAmount: {
+    fontSize: 24,
+    fontWeight: 700,
+    color: "#000",
+    letterSpacing: "-0.02em",
+  },
+  escrowUnit: {
+    fontSize: 14,
+    color: "#6B6B6B",
+  },
+  escrowNote: {
+    fontSize: 13,
+    color: "#6B6B6B",
+  },
+  workersCard: {
+    display: "flex",
+    alignItems: "center",
+    gap: 16,
+    background: "#000",
+    borderRadius: 12,
+    padding: "20px 24px",
+    cursor: "pointer",
+    transition: "transform 0.15s ease, box-shadow 0.15s ease",
+  },
+  workersCount: {
+    fontSize: 32,
+    fontWeight: 700,
+    color: "#fff",
+    letterSpacing: "-0.02em",
+  },
+  workersInfo: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+  },
+  workersTitle: {
+    fontSize: 16,
+    fontWeight: 600,
+    color: "#fff",
+    letterSpacing: "-0.01em",
+  },
+  workersHint: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.6)",
+  },
+  arrowIcon: {
+    fontSize: 20,
+    color: "#fff",
+    fontWeight: 300,
+  },
 };
 
 export default NewTask;
