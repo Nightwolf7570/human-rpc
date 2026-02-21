@@ -1,6 +1,6 @@
 import { useWidget, type WidgetMetadata } from "mcp-use/react";
 import { z } from "zod";
-import { useState, useRef, useLayoutEffect } from "react";
+import { useState } from "react";
 
 const propSchema = z.object({
   task: z.object({
@@ -35,16 +35,8 @@ function parseInstructions(raw: string): string[] {
 }
 
 const NewTask: React.FC = () => {
-  const { props, isPending, sendFollowUpMessage, notifyIntrinsicHeight } = useWidget<Props>();
+  const { props, isPending, sendFollowUpMessage } = useWidget<Props>();
   const [loading, setLoading] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    if (containerRef.current) {
-      const height = containerRef.current.scrollHeight;
-      notifyIntrinsicHeight(height);
-    }
-  });
 
   const handleWorkersClick = async (taskId: string) => {
     setLoading(true);
@@ -68,7 +60,7 @@ const NewTask: React.FC = () => {
   const { task, matchCount } = props;
 
   return (
-    <div ref={containerRef} style={styles.container}>
+    <div style={styles.container}>
       {/* Success indicator */}
       <div style={styles.successBanner}>
         <div style={styles.checkIcon}>
@@ -158,10 +150,9 @@ function InfoItem({ label, value, accent }: { label: string; value: string; acce
 const styles: Record<string, React.CSSProperties> = {
   container: {
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    width: "100%",
-    padding: 16,
-    boxSizing: "border-box",
-    overflow: "visible",
+    maxWidth: 480,
+    margin: "0 auto",
+    padding: 24,
   },
   loadingContainer: {
     display: "flex",

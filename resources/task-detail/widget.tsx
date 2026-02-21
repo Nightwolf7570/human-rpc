@@ -1,6 +1,5 @@
 import { useWidget, type WidgetMetadata } from "mcp-use/react";
 import { z } from "zod";
-import { useRef, useLayoutEffect } from "react";
 
 const propSchema = z.object({
   task: z.object({
@@ -63,15 +62,7 @@ const STATUS_CONFIG: Record<string, { label: string; step: number }> = {
 const STEPS = ["Created", "Hired", "Working", "Review", "Done"];
 
 const TaskDetail: React.FC = () => {
-  const { props, isPending, notifyIntrinsicHeight } = useWidget<Props>();
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    if (containerRef.current) {
-      const height = containerRef.current.scrollHeight;
-      notifyIntrinsicHeight(height);
-    }
-  });
+  const { props, isPending } = useWidget<Props>();
 
   if (isPending) {
     return (
@@ -88,7 +79,7 @@ const TaskDetail: React.FC = () => {
   const isDisputed = task.status === "disputed";
 
   return (
-    <div ref={containerRef} style={styles.container}>
+    <div style={styles.container}>
       {/* Status pill */}
       <div style={styles.statusRow}>
         <div style={{
@@ -300,10 +291,9 @@ function BudgetItem({ label, value, highlight }: { label: string; value: number;
 const styles: Record<string, React.CSSProperties> = {
   container: {
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    width: "100%",
-    padding: 16,
-    boxSizing: "border-box",
-    overflow: "visible",
+    maxWidth: 520,
+    margin: "0 auto",
+    padding: 24,
     display: "flex",
     flexDirection: "column",
     gap: 16,

@@ -1,6 +1,6 @@
 import { useWidget, type WidgetMetadata } from "mcp-use/react";
 import { z } from "zod";
-import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { useState } from "react";
 
 const workerSchema = z.object({
   id: z.string(),
@@ -140,16 +140,8 @@ function WorkerCard({ worker, taskId, rank }: { worker: Worker; taskId: string |
 }
 
 const WorkerMatch: React.FC = () => {
-  const { props, isPending, notifyIntrinsicHeight } = useWidget<Props>();
+  const { props, isPending } = useWidget<Props>();
   const [sortBy, setSortBy] = useState<"rating" | "price" | "tasks">("rating");
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    if (containerRef.current) {
-      const height = containerRef.current.scrollHeight;
-      notifyIntrinsicHeight(height);
-    }
-  });
 
   if (isPending) {
     return (
@@ -169,7 +161,7 @@ const WorkerMatch: React.FC = () => {
   });
 
   return (
-    <div ref={containerRef} style={styles.container}>
+    <div style={styles.container}>
       {/* Header */}
       <div style={styles.header}>
         <div style={styles.headerContent}>
@@ -232,10 +224,9 @@ const WorkerMatch: React.FC = () => {
 const styles: Record<string, React.CSSProperties> = {
   container: {
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    width: "100%",
-    padding: 16,
-    boxSizing: "border-box",
-    overflow: "visible",
+    maxWidth: 520,
+    margin: "0 auto",
+    padding: 24,
   },
   loadingContainer: {
     display: "flex",
