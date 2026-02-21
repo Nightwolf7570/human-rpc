@@ -18,6 +18,8 @@ const propSchema = z.object({
     timeline: z.array(z.object({ time: z.string(), event: z.string(), actor: z.string() })),
     pointsEscrowed: z.number(),
     pointsPaid: z.number(),
+    dropboxUploadUrl: z.string().nullable(),
+    dropboxPath: z.string().nullable(),
   }),
   worker: z.object({
     id: z.string(),
@@ -186,6 +188,23 @@ const TaskDetail: React.FC = () => {
           <BudgetItem label="Paid" value={task.pointsPaid} highlight />
         </div>
       </div>
+
+      {/* Dropbox upload link */}
+      {task.dropboxUploadUrl && (
+        <div style={styles.card}>
+          <h2 style={styles.sectionTitle}>Proof uploads</h2>
+          <a href={task.dropboxUploadUrl} target="_blank" rel="noopener noreferrer" style={styles.dropboxLink}>
+            <span style={styles.dropboxIcon}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#0061FF">
+                <path d="M6 2l6 3.6L6 9.2 0 5.6zm12 0l6 3.6-6 3.6-6-3.6zM0 12.8l6 3.6 6-3.6-6-3.6zm18-3.6l6 3.6-6 3.6-6-3.6zM6 18l6-3.6 6 3.6-6 3.6z"/>
+              </svg>
+            </span>
+            <span style={styles.dropboxText}>Open Dropbox upload link</span>
+            <span style={styles.proofArrow}>↗</span>
+          </a>
+          <p style={styles.dropboxHint}>Workers upload proof files here. Use check_uploads to see what's been uploaded.</p>
+        </div>
+      )}
 
       {/* Proof section */}
       {task.proof && (
@@ -686,6 +705,33 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 15,
     color: "#000",
     letterSpacing: "-0.01em",
+  },
+  dropboxLink: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "16px 20px",
+    background: "#F0F7FF",
+    borderRadius: 12,
+    textDecoration: "none",
+    transition: "background 0.15s ease",
+  },
+  dropboxIcon: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  dropboxText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: 500,
+    color: "#0061FF",
+  },
+  dropboxHint: {
+    fontSize: 13,
+    color: "#6B6B6B",
+    margin: "12px 0 0 0",
   },
 };
 

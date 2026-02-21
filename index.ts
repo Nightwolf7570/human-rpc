@@ -2,8 +2,13 @@ import { MCPServer, widget, text } from "mcp-use/server";
 import { z } from "zod";
 import { Resend } from "resend";
 import twilio from "twilio";
+import crypto from "crypto";
 
 const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+const baseUrl = process.env.MCP_URL ?? `http://localhost:${port}`;
+
+// Response tokens for worker accept/decline email flow
+const RESPONSE_TOKENS = new Map<string, { taskId: string; workerId: string }>();
 
 // ─── Notifications ──────────────────────────────────────────────────────────
 
@@ -21,15 +26,16 @@ function getTwilio() {
   return { client: twilio(sid, token), from };
 }
 
-async function notifyWorker(worker: Worker, task: Task): Promise<{ sms: string; email: string }> {
+async function notifyWorker(worker: Worker, task: Task, responseToken?: string): Promise<{ sms: string; email: string }> {
   const results = { sms: "skipped", email: "skipped" };
 
   // SMS via Twilio
   const tw = getTwilio();
   if (tw && worker.phone) {
     try {
+      const uploadLine = task.dropboxUploadUrl ? `\n\nUpload proof here: ${task.dropboxUploadUrl}` : "";
       await tw.client.messages.create({
-        body: `HumanRPC: You've been hired!\n\nTask: ${task.title}\nLocation: ${task.location}\nDeadline: ${task.deadline}\nBudget: ${task.budget} pts\n\nInstructions:\n${task.instructions}\n\nTask ID: ${task.id}`,
+        body: `HumanRPC: You've been hired!\n\nTask: ${task.title}\nLocation: ${task.location}\nDeadline: ${task.deadline}\nBudget: ${task.budget} pts\n\nInstructions:\n${task.instructions}\n\nTask ID: ${task.id}${uploadLine}`,
         from: tw.from,
         to: worker.phone,
       });
@@ -62,6 +68,17 @@ async function notifyWorker(worker: Worker, task: Task): Promise<{ sms: string; 
               <div style="font-size:12px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Instructions</div>
               <div style="font-size:14px;color:#333;line-height:1.6;white-space:pre-line">${task.instructions}</div>
             </div>
+            ${responseToken ? `
+            <div style="margin-bottom:20px;text-align:center">
+              <div style="font-size:12px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Do you accept this job?</div>
+              <a href="${baseUrl}/api/worker-response?token=${responseToken}&action=accept" style="display:inline-block;padding:14px 32px;background:#22c55e;border-radius:8px;color:#fff;font-weight:700;font-size:16px;text-decoration:none;margin-right:12px">Accept Job</a>
+              <a href="${baseUrl}/api/worker-response?token=${responseToken}&action=decline" style="display:inline-block;padding:14px 32px;background:#ef4444;border-radius:8px;color:#fff;font-weight:700;font-size:16px;text-decoration:none">Decline</a>
+            </div>` : ""}
+            ${task.dropboxUploadUrl ? `
+            <div style="margin-bottom:20px">
+              <div style="font-size:12px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Upload Proof</div>
+              <a href="${task.dropboxUploadUrl}" style="display:block;text-align:center;padding:14px;background:#0061FF;border-radius:8px;color:#fff;font-weight:700;font-size:14px;text-decoration:none">Upload files to Dropbox</a>
+            </div>` : ""}
             <div style="text-align:center;padding:16px;background:#111;border-radius:8px">
               <span style="color:#fff;font-weight:700;font-size:14px">Task ID: ${task.id}</span>
             </div>
@@ -77,6 +94,71 @@ async function notifyWorker(worker: Worker, task: Task): Promise<{ sms: string; 
   return results;
 }
 
+// ─── Dropbox ────────────────────────────────────────────────────────────────
+
+function getDropboxToken(): string | null {
+  return process.env.DROPBOX_ACCESS_TOKEN ?? null;
+}
+
+async function createDropboxFileRequest(taskId: string, taskTitle: string): Promise<{ url: string; path: string } | null> {
+  const token = getDropboxToken();
+  if (!token) return null;
+
+  const destPath = `/HumanRPC/${taskId}`;
+
+  try {
+    const res = await fetch("https://api.dropboxapi.com/2/file_requests/create", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title: `${taskId}: ${taskTitle}`,
+        destination: destPath,
+        open: true,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      console.error("Dropbox file request failed:", err);
+      return null;
+    }
+
+    const data = await res.json() as { url: string };
+    return { url: data.url, path: destPath };
+  } catch (err) {
+    console.error("Dropbox file request error:", err);
+    return null;
+  }
+}
+
+async function listDropboxFiles(path: string): Promise<{ name: string; size: number; modified: string }[]> {
+  const token = getDropboxToken();
+  if (!token) return [];
+
+  try {
+    const res = await fetch("https://api.dropboxapi.com/2/files/list_folder", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ path, recursive: false }),
+    });
+
+    if (!res.ok) return [];
+
+    const data = await res.json() as { entries: { ".tag": string; name: string; size: number; client_modified: string }[] };
+    return data.entries
+      .filter((e) => e[".tag"] === "file")
+      .map((e) => ({ name: e.name, size: e.size, modified: e.client_modified }));
+  } catch {
+    return [];
+  }
+}
+
 // ─── Server ─────────────────────────────────────────────────────────────────
 
 const server = new MCPServer({
@@ -86,7 +168,7 @@ const server = new MCPServer({
   description:
     "Remote Procedure Calls to Real Humans. A two-sided marketplace where AI agents post physical-world tasks and vetted human workers complete them. Supports task creation, worker matching, hiring, proof submission, and review/payment.",
   host: process.env.HOST ?? "0.0.0.0",
-  baseUrl: process.env.MCP_URL ?? `http://localhost:${port}`,
+  baseUrl,
 });
 
 // ─── Data Layer ──────────────────────────────────────────────────────────────
@@ -137,6 +219,8 @@ interface Task {
   timeline: { time: string; event: string; actor: string }[];
   pointsEscrowed: number;
   pointsPaid: number;
+  dropboxUploadUrl: string | null;
+  dropboxPath: string | null;
 }
 
 const TASKS = new Map<string, Task>();
@@ -265,6 +349,8 @@ server.tool(
       ],
       pointsEscrowed: budget,
       pointsPaid: 0,
+      dropboxUploadUrl: null,
+      dropboxPath: null,
     };
 
     TASKS.set(id, task);
@@ -396,8 +482,22 @@ server.tool(
       { time: now(), event: `${worker.name} hired for the task`, actor: "AI Agent" },
     );
 
-    // Send notifications
-    const notify = await notifyWorker(worker, task);
+    // Generate response token for accept/decline flow
+    const responseToken = crypto.randomUUID();
+    RESPONSE_TOKENS.set(responseToken, { taskId: task_id, workerId: worker.id });
+
+    // Create Dropbox file request for proof uploads
+    let dropboxStatus = "skipped (no token)";
+    const dbx = await createDropboxFileRequest(task_id, task.title);
+    if (dbx) {
+      task.dropboxUploadUrl = dbx.url;
+      task.dropboxPath = dbx.path;
+      dropboxStatus = "upload link created";
+      task.timeline.push({ time: now(), event: `Dropbox upload link created`, actor: "System" });
+    }
+
+    // Send notifications (include accept/decline links)
+    const notify = await notifyWorker(worker, task, responseToken);
 
     if (notify.sms !== "skipped") {
       task.timeline.push({ time: now(), event: `SMS ${notify.sms}`, actor: "System" });
@@ -415,9 +515,10 @@ server.tool(
         `**Worker:** ${worker.name} (${worker.rating} stars, ${worker.completedTasks} completed)\n` +
         `**Budget:** ${task.budget} pts (escrowed)\n` +
         `**Response time:** ${worker.responseTime}\n` +
+        `**Dropbox:** ${dropboxStatus}${task.dropboxUploadUrl ? `\n**Upload link:** ${task.dropboxUploadUrl}` : ""}\n` +
         `**SMS:** ${notify.sms}\n` +
         `**Email:** ${notify.email}\n\n` +
-        `Use \`get_task_status\` to track progress.`
+        `Waiting for worker to **accept or decline** via email. Use \`get_task_status\` to check their response.`
     );
   }
 );
@@ -456,6 +557,51 @@ server.tool(
       `Proof submitted for task **${task_id}**!\n\n` +
         `**Proof:** ${proof_url}\n` +
         `**Notes:** ${notes}\n\n` +
+        `Use \`review_and_pay\` to approve or request changes.`
+    );
+  }
+);
+
+// ─── Tool: check_uploads ─────────────────────────────────────────────────────
+
+server.tool(
+  {
+    name: "check_uploads",
+    description:
+      "Check what files a worker has uploaded to Dropbox for a task. Use this to verify proof of work before approving payment.",
+    schema: z.object({
+      task_id: z.string().describe("Task ID to check uploads for"),
+    }) as any,
+  },
+  async ({ task_id }) => {
+    const task = TASKS.get(task_id);
+    if (!task) return text(`Task "${task_id}" not found.`);
+
+    if (!task.dropboxPath) {
+      return text(
+        `No Dropbox folder for task **${task_id}**.\n\n` +
+          (getDropboxToken()
+            ? "This task was created before Dropbox was configured."
+            : "Set the `DROPBOX_ACCESS_TOKEN` env var to enable Dropbox integration.")
+      );
+    }
+
+    const files = await listDropboxFiles(task.dropboxPath);
+
+    if (files.length === 0) {
+      return text(
+        `No files uploaded yet for task **${task_id}**.\n\n` +
+          `**Upload link:** ${task.dropboxUploadUrl}\n` +
+          `Share this link with the worker if they haven't received it.`
+      );
+    }
+
+    return text(
+      `**${files.length} file(s)** uploaded for task **${task_id}**:\n\n` +
+        files
+          .map((f) => `- **${f.name}** (${(f.size / 1024).toFixed(1)} KB) — ${new Date(f.modified).toLocaleString()}`)
+          .join("\n") +
+        `\n\n**Dropbox folder:** ${task.dropboxPath}\n` +
         `Use \`review_and_pay\` to approve or request changes.`
     );
   }
@@ -676,6 +822,75 @@ server.tool(
     );
   }
 );
+
+// ─── Worker Accept/Decline Route ─────────────────────────────────────────
+
+server.app.get("/api/worker-response", async (c) => {
+  const token = c.req.query("token");
+  const action = c.req.query("action");
+
+  if (!token || !action || (action !== "accept" && action !== "decline")) {
+    return c.html("<h2>Invalid link.</h2>", 400);
+  }
+
+  const entry = RESPONSE_TOKENS.get(token);
+  if (!entry) {
+    return c.html(
+      `<div style="font-family:system-ui,sans-serif;max-width:480px;margin:40px auto;text-align:center;padding:32px">
+        <h2 style="color:#111">Link Expired</h2>
+        <p style="color:#666">This link has already been used or is no longer valid.</p>
+      </div>`
+    );
+  }
+
+  const task = TASKS.get(entry.taskId);
+  const worker = WORKERS.find((w) => w.id === entry.workerId);
+  RESPONSE_TOKENS.delete(token);
+
+  if (!task || !worker) {
+    return c.html("<h2>Task or worker not found.</h2>", 404);
+  }
+
+  if (action === "accept") {
+    task.status = "in_progress";
+    task.timeline.push({
+      time: now(),
+      event: `${worker.name} accepted the job`,
+      actor: worker.name,
+    });
+
+    return c.html(
+      `<div style="font-family:system-ui,sans-serif;max-width:480px;margin:40px auto;text-align:center;padding:32px">
+        <div style="font-size:48px;margin-bottom:16px">&#9989;</div>
+        <h2 style="color:#22c55e">Job Accepted!</h2>
+        <p style="color:#666">Thanks, ${worker.name}! You've accepted <strong>${task.title}</strong>.</p>
+        <p style="color:#666">Get started and submit your proof when done.</p>
+        <div style="background:#fafafa;border-radius:10px;padding:16px;margin-top:20px;text-align:left">
+          <div style="font-size:13px;color:#666;margin-bottom:4px"><strong>Task ID:</strong> ${task.id}</div>
+          <div style="font-size:13px;color:#666;margin-bottom:4px"><strong>Deadline:</strong> ${task.deadline}</div>
+          <div style="font-size:13px;color:#666"><strong>Budget:</strong> ${task.budget} points</div>
+        </div>
+      </div>`
+    );
+  } else {
+    task.status = "open";
+    task.workerId = null;
+    task.workerName = null;
+    task.timeline.push({
+      time: now(),
+      event: `${worker.name} declined the job`,
+      actor: worker.name,
+    });
+
+    return c.html(
+      `<div style="font-family:system-ui,sans-serif;max-width:480px;margin:40px auto;text-align:center;padding:32px">
+        <div style="font-size:48px;margin-bottom:16px">&#128075;</div>
+        <h2 style="color:#ef4444">Job Declined</h2>
+        <p style="color:#666">No worries, ${worker.name}. The task <strong>${task.title}</strong> has been released back to the pool.</p>
+      </div>`
+    );
+  }
+});
 
 await server.listen(port);
 console.log(`HumanRPC v2 server running on port ${port}`);
