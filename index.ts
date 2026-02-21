@@ -1,4 +1,4 @@
-import { MCPServer, widget, text, object } from "mcp-use/server";
+import { MCPServer, widget, text } from "mcp-use/server";
 import { z } from "zod";
 
 const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
@@ -6,499 +6,580 @@ const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 const server = new MCPServer({
   name: "human-rpc",
   title: "HumanRPC",
-  version: "1.0.0",
+  version: "2.0.0",
   description:
-    "Remote Procedure Calls to Real Humans. AI agents rent human hands to complete physical-world tasks like picking up packages, buying billboards, flyering, photography, and more.",
+    "Remote Procedure Calls to Real Humans. A two-sided marketplace where AI agents post physical-world tasks and vetted human workers complete them. Supports task creation, worker matching, hiring, proof submission, and review/payment.",
   host: process.env.HOST ?? "0.0.0.0",
   baseUrl: process.env.MCP_URL ?? `http://localhost:${port}`,
 });
 
-// ─── Data Layer (simulated) ──────────────────────────────────────────────────
+// ─── Data Layer ──────────────────────────────────────────────────────────────
 
-interface Service {
+interface Worker {
   id: string;
   name: string;
-  category: string;
-  description: string;
-  basePrice: number;
-  unit: string;
-  emoji: string;
-  eta: string;
+  avatar: string;
   rating: number;
   completedTasks: number;
-}
-
-const SERVICES: Service[] = [
-  {
-    id: "pkg-pickup",
-    name: "Package Pickup & Delivery",
-    category: "Logistics",
-    description:
-      "A human picks up a package from one location and delivers it to another within the same city.",
-    basePrice: 25,
-    unit: "per trip",
-    emoji: "\u{1F4E6}",
-    eta: "1-3 hours",
-    rating: 4.8,
-    completedTasks: 12453,
-  },
-  {
-    id: "billboard-buy",
-    name: "Billboard Advertising",
-    category: "Marketing",
-    description:
-      "A human scouts, negotiates, and purchases billboard ad space in your target area.",
-    basePrice: 150,
-    unit: "per billboard",
-    emoji: "\u{1F4CB}",
-    eta: "2-5 days",
-    rating: 4.6,
-    completedTasks: 892,
-  },
-  {
-    id: "flyering",
-    name: "Street Flyering",
-    category: "Marketing",
-    description:
-      "A human distributes your flyers/brochures in high-traffic areas in your chosen neighborhood.",
-    basePrice: 35,
-    unit: "per hour",
-    emoji: "\u{1F4C4}",
-    eta: "Same day",
-    rating: 4.5,
-    completedTasks: 6721,
-  },
-  {
-    id: "photo-scout",
-    name: "Location Photography",
-    category: "Media",
-    description:
-      "A human photographer visits a location and takes professional photos per your specifications.",
-    basePrice: 75,
-    unit: "per session",
-    emoji: "\u{1F4F7}",
-    eta: "1-2 days",
-    rating: 4.9,
-    completedTasks: 3104,
-  },
-  {
-    id: "errand-run",
-    name: "Errand Running",
-    category: "Personal",
-    description:
-      "A human runs errands for you \u2014 grocery shopping, dry cleaning pickup, returns, bank deposits, etc.",
-    basePrice: 20,
-    unit: "per errand",
-    emoji: "\u{1F3C3}",
-    eta: "1-4 hours",
-    rating: 4.7,
-    completedTasks: 18290,
-  },
-  {
-    id: "event-staff",
-    name: "Event Staffing",
-    category: "Events",
-    description:
-      "Hire on-demand humans for event setup, registration desks, ushering, or teardown.",
-    basePrice: 30,
-    unit: "per hour per person",
-    emoji: "\u{1F389}",
-    eta: "1-3 days advance booking",
-    rating: 4.6,
-    completedTasks: 2567,
-  },
-  {
-    id: "install-hw",
-    name: "Physical Installation",
-    category: "Technical",
-    description:
-      "A human installs physical hardware, signage, sensors, cameras, or equipment at a specified location.",
-    basePrice: 85,
-    unit: "per installation",
-    emoji: "\u{1F527}",
-    eta: "1-3 days",
-    rating: 4.7,
-    completedTasks: 1843,
-  },
-  {
-    id: "mystery-shop",
-    name: "Mystery Shopping",
-    category: "Research",
-    description:
-      "A human visits a business undercover and provides a detailed experience report with photos.",
-    basePrice: 45,
-    unit: "per visit",
-    emoji: "\u{1F575}\u{FE0F}",
-    eta: "1-3 days",
-    rating: 4.8,
-    completedTasks: 4210,
-  },
-  {
-    id: "queue-wait",
-    name: "Queue Waiting",
-    category: "Personal",
-    description:
-      "A human waits in line for you \u2014 DMV, product launches, restaurant reservations, government offices.",
-    basePrice: 22,
-    unit: "per hour",
-    emoji: "\u{1F9CD}",
-    eta: "Same day",
-    rating: 4.4,
-    completedTasks: 7832,
-  },
-  {
-    id: "notarize",
-    name: "Document Notarization",
-    category: "Legal",
-    description:
-      "A human takes your documents to a notary public and returns the notarized copies.",
-    basePrice: 40,
-    unit: "per document set",
-    emoji: "\u{1F4DD}",
-    eta: "1-2 days",
-    rating: 4.9,
-    completedTasks: 5621,
-  },
-];
-
-interface TaskRecord {
-  id: string;
-  serviceId: string;
-  serviceName: string;
-  status: "pending" | "matched" | "in_progress" | "completed";
+  skills: string[];
   location: string;
-  details: string;
-  humanName: string;
-  humanRating: number;
-  price: number;
-  createdAt: string;
-  eta: string;
-  updates: { time: string; message: string }[];
+  hourlyRate: number;
+  available: boolean;
+  responseTime: string;
+  bio: string;
+  verified: boolean;
 }
 
-const ACTIVE_TASKS: Map<string, TaskRecord> = new Map();
-
-let taskCounter = 1000;
-
-function generateTaskId(): string {
-  return `HRPC-${++taskCounter}`;
-}
-
-const HUMAN_NAMES = [
-  "Sarah K.",
-  "Marcus T.",
-  "Priya S.",
-  "Jake R.",
-  "Aisha M.",
-  "Tom W.",
-  "Luna C.",
-  "Diego F.",
+const WORKERS: Worker[] = [
+  {
+    id: "w-001",
+    name: "Sarah Kim",
+    avatar: "SK",
+    rating: 4.9,
+    completedTasks: 347,
+    skills: ["Photography", "Real Estate", "Inspections"],
+    location: "San Francisco, CA",
+    hourlyRate: 35,
+    available: true,
+    responseTime: "< 15 min",
+    bio: "Professional photographer with 5 years of real estate experience. Own DSLR + drone.",
+    verified: true,
+  },
+  {
+    id: "w-002",
+    name: "Marcus Thompson",
+    avatar: "MT",
+    rating: 4.8,
+    completedTasks: 512,
+    skills: ["Delivery", "Errands", "Queue Waiting", "Shopping"],
+    location: "San Francisco, CA",
+    hourlyRate: 25,
+    available: true,
+    responseTime: "< 10 min",
+    bio: "Reliable runner. Have a car and bike. Available most days 8am-8pm.",
+    verified: true,
+  },
+  {
+    id: "w-003",
+    name: "Priya Sharma",
+    avatar: "PS",
+    rating: 4.7,
+    completedTasks: 189,
+    skills: ["Marketing", "Flyering", "Event Staffing", "Street Teams"],
+    location: "Oakland, CA",
+    hourlyRate: 28,
+    available: true,
+    responseTime: "< 30 min",
+    bio: "Marketing student at UC Berkeley. Great with people, always on time.",
+    verified: true,
+  },
+  {
+    id: "w-004",
+    name: "Jake Rivera",
+    avatar: "JR",
+    rating: 4.6,
+    completedTasks: 94,
+    skills: ["Installation", "Hardware", "Assembly", "Signage"],
+    location: "San Jose, CA",
+    hourlyRate: 45,
+    available: true,
+    responseTime: "< 1 hour",
+    bio: "Handyman with full tool kit. Electrical, mounting, assembly, you name it.",
+    verified: true,
+  },
+  {
+    id: "w-005",
+    name: "Aisha Morales",
+    avatar: "AM",
+    rating: 4.9,
+    completedTasks: 276,
+    skills: ["Mystery Shopping", "Research", "Inspections", "Documentation"],
+    location: "Palo Alto, CA",
+    hourlyRate: 30,
+    available: false,
+    responseTime: "< 2 hours",
+    bio: "Detail-oriented researcher. Excellent written reports with photo evidence.",
+    verified: true,
+  },
+  {
+    id: "w-006",
+    name: "Tom Walsh",
+    avatar: "TW",
+    rating: 4.5,
+    completedTasks: 631,
+    skills: ["Delivery", "Errands", "Queue Waiting", "Notarization"],
+    location: "San Francisco, CA",
+    hourlyRate: 22,
+    available: true,
+    responseTime: "< 5 min",
+    bio: "Full-time gig worker. Fastest response time on the platform. Never missed a deadline.",
+    verified: true,
+  },
+  {
+    id: "w-007",
+    name: "Luna Chen",
+    avatar: "LC",
+    rating: 4.8,
+    completedTasks: 158,
+    skills: ["Photography", "Videography", "Social Media", "Marketing"],
+    location: "Berkeley, CA",
+    hourlyRate: 40,
+    available: true,
+    responseTime: "< 20 min",
+    bio: "Content creator & photographer. Specialize in property tours and product shots.",
+    verified: true,
+  },
+  {
+    id: "w-008",
+    name: "Diego Fuentes",
+    avatar: "DF",
+    rating: 4.4,
+    completedTasks: 82,
+    skills: ["Billboard", "Advertising", "Signage", "Negotiations"],
+    location: "San Francisco, CA",
+    hourlyRate: 50,
+    available: true,
+    responseTime: "< 1 hour",
+    bio: "Former ad sales rep. Know every billboard vendor in the Bay Area.",
+    verified: true,
+  },
 ];
 
-function randomHuman() {
-  const name = HUMAN_NAMES[Math.floor(Math.random() * HUMAN_NAMES.length)];
-  const rating = +(4.3 + Math.random() * 0.7).toFixed(1);
-  return { name, rating };
+type TaskStatus =
+  | "open"
+  | "matching"
+  | "hired"
+  | "in_progress"
+  | "proof_submitted"
+  | "approved"
+  | "disputed"
+  | "completed";
+
+interface Task {
+  id: string;
+  title: string;
+  category: string;
+  location: string;
+  instructions: string;
+  budget: number;
+  deadline: string;
+  status: TaskStatus;
+  createdAt: string;
+  workerId: string | null;
+  workerName: string | null;
+  proof: { type: string; url: string; notes: string } | null;
+  timeline: { time: string; event: string; actor: string }[];
+  pointsEscrowed: number;
+  pointsPaid: number;
 }
 
-// ─── Tools ───────────────────────────────────────────────────────────────────
+const TASKS = new Map<string, Task>();
+let taskSeq = 1000;
+
+const TASK_CATEGORIES = [
+  "Photography & Inspection",
+  "Delivery & Pickup",
+  "Marketing & Flyering",
+  "Errands & Shopping",
+  "Queue Waiting",
+  "Installation & Hardware",
+  "Mystery Shopping & Research",
+  "Billboard & Advertising",
+  "Event Staffing",
+  "Document & Legal",
+];
+
+function generateId(): string {
+  return `HRPC-${++taskSeq}`;
+}
+
+function now(): string {
+  return new Date().toISOString();
+}
+
+// ─── Tool: create_task ───────────────────────────────────────────────────────
 
 server.tool(
   {
-    name: "browse_services",
+    name: "create_task",
     description:
-      "Browse all available human services that AI can rent. Optionally filter by category. Returns a visual catalog of services with pricing, ratings, and ETAs.",
+      "Create a new task for a human to complete. Describes what needs to be done, where, budget (in points), and deadline. Returns a task confirmation widget with ID.",
     schema: z.object({
+      title: z.string().describe("Short title of the task (e.g. 'Photograph house exterior at 123 Main St')"),
+      category: z
+        .string()
+        .describe(
+          `Task category. One of: ${TASK_CATEGORIES.join(", ")}`
+        ),
+      location: z.string().describe("Physical address or area where the task takes place"),
+      instructions: z
+        .string()
+        .describe("Detailed step-by-step instructions for the human worker"),
+      budget: z
+        .number()
+        .describe("Budget in points (1 point = ~$1 USD). Workers see this amount."),
+      deadline: z
+        .string()
+        .describe("Deadline as a human-readable string, e.g. 'Within 4 hours' or '2026-02-22 5pm PST'"),
+    }) as any,
+    widget: {
+      name: "new-task",
+      invoking: "Creating task...",
+      invoked: "Task created",
+    },
+  },
+  async ({ title, category, location, instructions, budget, deadline }) => {
+    const id = generateId();
+    const task: Task = {
+      id,
+      title,
+      category,
+      location,
+      instructions,
+      budget,
+      deadline,
+      status: "open",
+      createdAt: now(),
+      workerId: null,
+      workerName: null,
+      proof: null,
+      timeline: [
+        { time: now(), event: "Task created", actor: "AI Agent" },
+        { time: now(), event: `${budget} points escrowed`, actor: "System" },
+      ],
+      pointsEscrowed: budget,
+      pointsPaid: 0,
+    };
+
+    TASKS.set(id, task);
+
+    return widget({
+      props: { task, matchCount: matchWorkers(category, location).length },
+      output: text(
+        `Task **${id}** created!\n\n` +
+          `**${title}**\n` +
+          `Category: ${category}\n` +
+          `Location: ${location}\n` +
+          `Budget: ${budget} pts | Deadline: ${deadline}\n\n` +
+          `${matchWorkers(category, location).length} workers available. Use \`list_workers\` to see matches.`
+      ),
+    });
+  }
+);
+
+// ─── Tool: list_workers ──────────────────────────────────────────────────────
+
+function matchWorkers(category: string, location: string): Worker[] {
+  const categorySkillMap: Record<string, string[]> = {
+    "Photography & Inspection": ["Photography", "Inspections", "Real Estate"],
+    "Delivery & Pickup": ["Delivery", "Errands"],
+    "Marketing & Flyering": ["Marketing", "Flyering", "Street Teams"],
+    "Errands & Shopping": ["Errands", "Shopping", "Queue Waiting"],
+    "Queue Waiting": ["Queue Waiting", "Errands"],
+    "Installation & Hardware": ["Installation", "Hardware", "Assembly", "Signage"],
+    "Mystery Shopping & Research": ["Mystery Shopping", "Research", "Documentation"],
+    "Billboard & Advertising": ["Billboard", "Advertising", "Signage", "Negotiations"],
+    "Event Staffing": ["Event Staffing", "Marketing", "Street Teams"],
+    "Document & Legal": ["Notarization", "Documentation", "Errands"],
+  };
+
+  const relevantSkills = categorySkillMap[category] ?? [];
+
+  return WORKERS.filter((w) => {
+    const hasSkill =
+      relevantSkills.length === 0 ||
+      w.skills.some((s) => relevantSkills.includes(s));
+    return hasSkill && w.available;
+  }).sort((a, b) => b.rating - a.rating);
+}
+
+server.tool(
+  {
+    name: "list_workers",
+    description:
+      "List available workers who can complete a task. Filters by task category and location. Shows ratings, skills, pricing, and availability. Use this to find candidates before hiring.",
+    schema: z.object({
+      task_id: z
+        .string()
+        .optional()
+        .describe("Task ID to match workers for (auto-filters by task category)"),
       category: z
         .string()
         .optional()
-        .describe(
-          "Filter by category: Logistics, Marketing, Media, Personal, Events, Technical, Research, Legal"
-        ),
+        .describe("Manual category filter (overrides task_id)"),
+      location: z.string().optional().describe("Location preference"),
     }) as any,
     widget: {
-      name: "service-browser",
-      invoking: "Loading services...",
-      invoked: "Services loaded",
+      name: "worker-match",
+      invoking: "Finding workers...",
+      invoked: "Workers found",
     },
   },
-  async ({ category }) => {
-    const filtered = category
-      ? SERVICES.filter(
-          (s) => s.category.toLowerCase() === category.toLowerCase()
-        )
-      : SERVICES;
+  async ({ task_id, category, location }) => {
+    let cat = category ?? "";
+    let loc = location ?? "";
+    let task: Task | undefined;
 
-    const categories = [...new Set(SERVICES.map((s) => s.category))];
-
-    return widget({
-      props: {
-        services: filtered,
-        categories,
-        activeCategory: category ?? "All",
-      },
-      output: text(
-        `Found ${filtered.length} human services${category ? ` in "${category}"` : ""}:\n\n` +
-          filtered
-            .map(
-              (s) =>
-                `- ${s.emoji} **${s.name}** ($${s.basePrice} ${s.unit}) - ${s.description}`
-            )
-            .join("\n")
-      ),
-    });
-  }
-);
-
-server.tool(
-  {
-    name: "request_task",
-    description:
-      "Request a human to perform a physical-world task. Specify the service, location, and task details. Returns a task ID for tracking.",
-    schema: z.object({
-      service_id: z
-        .string()
-        .describe(
-          "Service ID (e.g. pkg-pickup, billboard-buy, flyering, photo-scout, errand-run, event-staff, install-hw, mystery-shop, queue-wait, notarize)"
-        ),
-      location: z
-        .string()
-        .describe("Physical location/address where the task needs to be performed"),
-      details: z
-        .string()
-        .describe(
-          "Detailed instructions for the human performing the task"
-        ),
-      urgency: z
-        .enum(["standard", "rush", "urgent"])
-        .optional()
-        .describe("Urgency level: standard (default), rush (1.5x), urgent (2x)"),
-    }) as any,
-    widget: {
-      name: "task-request",
-      invoking: "Finding a human...",
-      invoked: "Human matched!",
-    },
-  },
-  async ({ service_id, location, details, urgency }) => {
-    const service = SERVICES.find((s) => s.id === service_id);
-    if (!service) {
-      return text(`Unknown service: "${service_id}". Use browse_services to see available options.`);
+    if (task_id) {
+      task = TASKS.get(task_id);
+      if (task) {
+        cat = cat || task.category;
+        loc = loc || task.location;
+      }
     }
 
-    const multiplier =
-      urgency === "urgent" ? 2.0 : urgency === "rush" ? 1.5 : 1.0;
-    const price = +(service.basePrice * multiplier).toFixed(2);
-    const human = randomHuman();
-    const taskId = generateTaskId();
-
-    const task: TaskRecord = {
-      id: taskId,
-      serviceId: service.id,
-      serviceName: service.name,
-      status: "matched",
-      location,
-      details,
-      humanName: human.name,
-      humanRating: human.rating,
-      price,
-      createdAt: new Date().toISOString(),
-      eta: service.eta,
-      updates: [
-        {
-          time: new Date().toISOString(),
-          message: "Task created and submitted to HumanRPC network",
-        },
-        {
-          time: new Date(Date.now() + 15000).toISOString(),
-          message: `${human.name} accepted your task`,
-        },
-      ],
-    };
-
-    ACTIVE_TASKS.set(taskId, task);
+    const workers = matchWorkers(cat, loc);
 
     return widget({
       props: {
-        task,
-        service,
-        urgency: urgency ?? "standard",
+        workers,
+        taskId: task_id ?? null,
+        taskTitle: task?.title ?? null,
+        category: cat,
       },
       output: text(
-        `Task ${taskId} created!\n\n` +
-          `**Service:** ${service.emoji} ${service.name}\n` +
-          `**Human:** ${human.name} (${human.rating} stars)\n` +
-          `**Location:** ${location}\n` +
-          `**Price:** $${price} (${urgency ?? "standard"})\n` +
-          `**ETA:** ${service.eta}\n\n` +
-          `Use \`track_task\` with ID "${taskId}" to monitor progress.`
+        `**${workers.length} workers** available${cat ? ` for "${cat}"` : ""}:\n\n` +
+          workers
+            .map(
+              (w) =>
+                `- **${w.name}** (${w.id}) | ${w.rating} stars | ${w.completedTasks} tasks | $${w.hourlyRate}/hr | ${w.responseTime}\n  Skills: ${w.skills.join(", ")}`
+            )
+            .join("\n") +
+          (task_id ? `\n\nUse \`hire_worker\` with task_id="${task_id}" and worker_id to hire.` : "")
       ),
     });
   }
 );
 
+// ─── Tool: hire_worker ───────────────────────────────────────────────────────
+
 server.tool(
   {
-    name: "get_quote",
+    name: "hire_worker",
     description:
-      "Get a price quote for a human task before committing. Shows pricing breakdown with urgency tiers.",
+      "Hire a specific worker for a task. The worker is notified and the task moves to 'hired' status. Points are held in escrow until task completion.",
     schema: z.object({
-      service_id: z
+      task_id: z.string().describe("Task ID"),
+      worker_id: z.string().describe("Worker ID to hire (e.g. w-001)"),
+    }) as any,
+  },
+  async ({ task_id, worker_id }) => {
+    const task = TASKS.get(task_id);
+    if (!task) return text(`Task "${task_id}" not found.`);
+    if (task.status !== "open" && task.status !== "matching")
+      return text(`Task ${task_id} is already in status "${task.status}" and cannot be assigned.`);
+
+    const worker = WORKERS.find((w) => w.id === worker_id);
+    if (!worker) return text(`Worker "${worker_id}" not found.`);
+    if (!worker.available) return text(`${worker.name} is currently unavailable.`);
+
+    task.status = "hired";
+    task.workerId = worker.id;
+    task.workerName = worker.name;
+    task.timeline.push(
+      { time: now(), event: `${worker.name} hired for the task`, actor: "AI Agent" },
+      { time: now(), event: `Notification sent to ${worker.name}`, actor: "System" }
+    );
+
+    return text(
+      `**${worker.name}** has been hired for task **${task_id}**!\n\n` +
+        `**Task:** ${task.title}\n` +
+        `**Worker:** ${worker.name} (${worker.rating} stars, ${worker.completedTasks} completed)\n` +
+        `**Budget:** ${task.budget} pts (escrowed)\n` +
+        `**Response time:** ${worker.responseTime}\n\n` +
+        `The worker has been notified. Use \`get_task_status\` to track progress.`
+    );
+  }
+);
+
+// ─── Tool: submit_proof ──────────────────────────────────────────────────────
+
+server.tool(
+  {
+    name: "submit_proof",
+    description:
+      "Submit proof of task completion. Workers provide links to photos/files and notes about the work done. Moves the task to 'proof_submitted' for review.",
+    schema: z.object({
+      task_id: z.string().describe("Task ID"),
+      proof_url: z
         .string()
-        .describe("Service ID to get a quote for"),
-      quantity: z
+        .describe("URL to proof (photos, documents, files). Can be a Google Drive link, Dropbox, etc."),
+      notes: z
+        .string()
+        .describe("Worker's notes about the completed work, any issues encountered, etc."),
+    }) as any,
+  },
+  async ({ task_id, proof_url, notes }) => {
+    const task = TASKS.get(task_id);
+    if (!task) return text(`Task "${task_id}" not found.`);
+    if (task.status !== "hired" && task.status !== "in_progress")
+      return text(`Task ${task_id} is in status "${task.status}". Can only submit proof for hired/in_progress tasks.`);
+
+    task.status = "proof_submitted";
+    task.proof = { type: "url", url: proof_url, notes };
+    task.timeline.push(
+      { time: now(), event: `Proof submitted by ${task.workerName}`, actor: task.workerName ?? "Worker" },
+      { time: now(), event: "Awaiting AI agent review", actor: "System" },
+    );
+
+    return text(
+      `Proof submitted for task **${task_id}**!\n\n` +
+        `**Proof:** ${proof_url}\n` +
+        `**Notes:** ${notes}\n\n` +
+        `Use \`review_and_pay\` to approve or request changes.`
+    );
+  }
+);
+
+// ─── Tool: review_and_pay ────────────────────────────────────────────────────
+
+server.tool(
+  {
+    name: "review_and_pay",
+    description:
+      "Review completed work and approve/reject. If approved, escrowed points are released to the worker. If rejected, provide feedback for the worker to retry.",
+    schema: z.object({
+      task_id: z.string().describe("Task ID to review"),
+      approve: z
+        .boolean()
+        .describe("true to approve and pay, false to request changes"),
+      feedback: z
+        .string()
+        .optional()
+        .describe("Feedback for the worker (required if rejecting)"),
+      tip_points: z
         .number()
         .optional()
-        .describe("Quantity/hours needed (default 1)"),
-      location: z
-        .string()
-        .optional()
-        .describe("Location for distance-based pricing adjustments"),
+        .describe("Optional tip in points on top of the budget"),
     }) as any,
-    widget: {
-      name: "quote-display",
-      invoking: "Calculating quote...",
-      invoked: "Quote ready",
-    },
   },
-  async ({ service_id, quantity, location }) => {
-    const service = SERVICES.find((s) => s.id === service_id);
-    if (!service) {
-      return text(`Unknown service: "${service_id}". Use browse_services to see available options.`);
+  async ({ task_id, approve, feedback, tip_points }) => {
+    const task = TASKS.get(task_id);
+    if (!task) return text(`Task "${task_id}" not found.`);
+    if (task.status !== "proof_submitted")
+      return text(`Task ${task_id} is in status "${task.status}". Can only review tasks with submitted proof.`);
+
+    if (approve) {
+      const tip = tip_points ?? 0;
+      const totalPaid = task.budget + tip;
+      task.status = "completed";
+      task.pointsPaid = totalPaid;
+      task.timeline.push(
+        { time: now(), event: `Work approved by AI Agent`, actor: "AI Agent" },
+        {
+          time: now(),
+          event: `${totalPaid} pts released to ${task.workerName}${tip > 0 ? ` (includes ${tip} pt tip)` : ""}`,
+          actor: "System",
+        },
+        { time: now(), event: "Task completed", actor: "System" },
+      );
+
+      return text(
+        `Task **${task_id}** approved and paid!\n\n` +
+          `**Paid:** ${totalPaid} pts to ${task.workerName}${tip > 0 ? ` (${task.budget} + ${tip} tip)` : ""}\n` +
+          `**Status:** Completed\n\n` +
+          `Thank you for using HumanRPC!`
+      );
+    } else {
+      task.status = "hired";
+      task.proof = null;
+      task.timeline.push(
+        {
+          time: now(),
+          event: `Changes requested: ${feedback ?? "No specific feedback"}`,
+          actor: "AI Agent",
+        },
+        { time: now(), event: `${task.workerName} notified of required changes`, actor: "System" },
+      );
+
+      return text(
+        `Changes requested for task **${task_id}**.\n\n` +
+          `**Feedback:** ${feedback ?? "Not specified"}\n` +
+          `**Status:** Sent back to ${task.workerName} for revision.\n\n` +
+          `The worker will resubmit proof after making changes.`
+      );
     }
-
-    const qty = quantity ?? 1;
-    const base = service.basePrice * qty;
-    const rush = +(base * 1.5).toFixed(2);
-    const urgent = +(base * 2.0).toFixed(2);
-    const platformFee = +(base * 0.1).toFixed(2);
-
-    const quote = {
-      service,
-      quantity: qty,
-      location: location ?? "Not specified",
-      pricing: {
-        standard: { subtotal: base, platformFee, total: +(base + platformFee).toFixed(2) },
-        rush: { subtotal: rush, platformFee: +(rush * 0.1).toFixed(2), total: +(rush + rush * 0.1).toFixed(2) },
-        urgent: { subtotal: urgent, platformFee: +(urgent * 0.1).toFixed(2), total: +(urgent + urgent * 0.1).toFixed(2) },
-      },
-      validFor: "30 minutes",
-    };
-
-    return widget({
-      props: quote,
-      output: text(
-        `**Quote for ${service.emoji} ${service.name}** (x${qty})\n\n` +
-          `| Tier | Subtotal | Fee | Total |\n` +
-          `|------|----------|-----|-------|\n` +
-          `| Standard | $${base} | $${platformFee} | **$${quote.pricing.standard.total}** |\n` +
-          `| Rush (1.5x) | $${rush} | $${quote.pricing.rush.platformFee} | **$${quote.pricing.rush.total}** |\n` +
-          `| Urgent (2x) | $${urgent} | $${quote.pricing.urgent.platformFee} | **$${quote.pricing.urgent.total}** |\n\n` +
-          `Quote valid for ${quote.validFor}.`
-      ),
-    });
   }
 );
 
+// ─── Tool: get_task_status ───────────────────────────────────────────────────
+
 server.tool(
   {
-    name: "track_task",
+    name: "get_task_status",
     description:
-      "Track the status of a previously requested human task. Shows real-time status, human info, and timeline updates.",
+      "Get the full status of a task including timeline, worker info, proof, and payment status. Shows an interactive task detail widget.",
     schema: z.object({
       task_id: z.string().describe("Task ID (e.g. HRPC-1001)"),
     }) as any,
     widget: {
-      name: "task-tracker",
-      invoking: "Loading task status...",
-      invoked: "Status loaded",
+      name: "task-detail",
+      invoking: "Loading task...",
+      invoked: "Task loaded",
     },
   },
   async ({ task_id }) => {
-    const task = ACTIVE_TASKS.get(task_id);
-    if (!task) {
-      return text(
-        `Task "${task_id}" not found. Make sure you have the correct task ID from a previous request_task call.`
-      );
-    }
+    const task = TASKS.get(task_id);
+    if (!task)
+      return text(`Task "${task_id}" not found.`);
 
-    // Simulate progress
-    if (task.status === "matched") {
+    // Simulate progress for demo
+    if (task.status === "hired") {
       task.status = "in_progress";
-      task.updates.push({
-        time: new Date().toISOString(),
-        message: `${task.humanName} is en route to ${task.location}`,
+      task.timeline.push({
+        time: now(),
+        event: `${task.workerName} started working on the task`,
+        actor: task.workerName ?? "Worker",
       });
     }
 
+    const worker = task.workerId ? WORKERS.find((w) => w.id === task.workerId) : null;
+
     return widget({
-      props: { task },
+      props: { task, worker },
       output: text(
-        `**Task ${task.id}** - ${task.serviceName}\n\n` +
-          `**Status:** ${task.status.replace("_", " ").toUpperCase()}\n` +
-          `**Human:** ${task.humanName} (${task.humanRating} stars)\n` +
+        `**Task ${task.id}: ${task.title}**\n\n` +
+          `**Status:** ${task.status.replace(/_/g, " ").toUpperCase()}\n` +
+          `**Category:** ${task.category}\n` +
           `**Location:** ${task.location}\n` +
-          `**Price:** $${task.price}\n\n` +
-          `**Timeline:**\n` +
-          task.updates.map((u) => `- ${u.message}`).join("\n")
+          `**Budget:** ${task.budget} pts | **Paid:** ${task.pointsPaid} pts\n` +
+          (task.workerName ? `**Worker:** ${task.workerName}\n` : "**Worker:** Not assigned\n") +
+          (task.proof ? `**Proof:** ${task.proof.url}\n**Notes:** ${task.proof.notes}\n` : "") +
+          `\n**Timeline:**\n` +
+          task.timeline.map((t) => `- [${t.actor}] ${t.event}`).join("\n")
       ),
     });
   }
 );
 
+// ─── Tool: list_tasks ────────────────────────────────────────────────────────
+
 server.tool(
   {
-    name: "complete_task",
-    description:
-      "Mark a task as completed. The assigned human confirms the task is done.",
+    name: "list_tasks",
+    description: "List all tasks with their current status, worker, and budget.",
     schema: z.object({
-      task_id: z.string().describe("Task ID to mark as completed"),
-      notes: z.string().optional().describe("Completion notes from the human"),
+      status: z
+        .string()
+        .optional()
+        .describe("Filter by status: open, matching, hired, in_progress, proof_submitted, approved, completed"),
     }) as any,
   },
-  async ({ task_id, notes }) => {
-    const task = ACTIVE_TASKS.get(task_id);
-    if (!task) {
-      return text(`Task "${task_id}" not found.`);
-    }
+  async ({ status }) => {
+    const all = [...TASKS.values()];
+    const filtered = status
+      ? all.filter((t) => t.status === status)
+      : all;
 
-    task.status = "completed";
-    task.updates.push({
-      time: new Date().toISOString(),
-      message: `Task completed by ${task.humanName}${notes ? `: ${notes}` : ""}`,
-    });
+    if (filtered.length === 0)
+      return text(status ? `No tasks with status "${status}".` : "No tasks yet. Use `create_task` to get started.");
 
     return text(
-      `Task ${task.id} marked as **completed**!\n\n` +
-        `**Service:** ${task.serviceName}\n` +
-        `**Human:** ${task.humanName}\n` +
-        `**Final Price:** $${task.price}\n` +
-        (notes ? `**Notes:** ${notes}` : "")
-    );
-  }
-);
-
-server.tool(
-  {
-    name: "list_active_tasks",
-    description: "List all active (non-completed) tasks with their current status.",
-    schema: z.object({}) as any,
-  },
-  async () => {
-    const tasks = [...ACTIVE_TASKS.values()].filter(
-      (t) => t.status !== "completed"
-    );
-
-    if (tasks.length === 0) {
-      return text("No active tasks. Use `request_task` to create one.");
-    }
-
-    return text(
-      `**${tasks.length} Active Task(s):**\n\n` +
-        tasks
+      `**${filtered.length} task(s)${status ? ` (${status})` : ""}:**\n\n` +
+        filtered
           .map(
             (t) =>
-              `- **${t.id}** | ${t.serviceName} | ${t.status.replace("_", " ")} | ${t.humanName} | $${t.price}`
+              `- **${t.id}** | ${t.title} | ${t.status.replace(/_/g, " ")} | ${t.workerName ?? "unassigned"} | ${t.budget} pts`
           )
           .join("\n")
     );
@@ -506,4 +587,4 @@ server.tool(
 );
 
 await server.listen(port);
-console.log(`HumanRPC server running on port ${port}`);
+console.log(`HumanRPC v2 server running on port ${port}`);
