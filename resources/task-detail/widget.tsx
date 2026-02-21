@@ -283,7 +283,7 @@ function BudgetItem({ label, value, highlight }: { label: string; value: number;
       <span style={{
         ...styles.budgetValue,
         color: highlight && value > 0 ? "#1B5E20" : "#000",
-      }}>{value} pts</span>
+      }}>{value} tokens</span>
     </div>
   );
 }

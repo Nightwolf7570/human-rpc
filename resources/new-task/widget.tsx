@@ -87,7 +87,7 @@ const NewTask: React.FC = () => {
           <InfoItem label="Category" value={task.category} />
           <InfoItem label="Location" value={task.location} />
           <InfoItem label="Deadline" value={task.deadline} />
-          <InfoItem label="Budget" value={`${task.budget} pts`} accent />
+          <InfoItem label="Budget" value={`${task.budget} tokens`} accent />
         </div>
 
         {/* Divider */}
@@ -110,7 +110,7 @@ const NewTask: React.FC = () => {
         <div style={styles.escrowCard}>
           <div style={styles.escrowLeft}>
             <span style={styles.escrowAmount}>{task.pointsEscrowed}</span>
-            <span style={styles.escrowUnit}>pts in escrow</span>
+            <span style={styles.escrowUnit}>tokens in escrow</span>
           </div>
           <span style={styles.escrowNote}>Released on approval</span>
         </div>
