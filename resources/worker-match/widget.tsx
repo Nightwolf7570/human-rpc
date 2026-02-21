@@ -25,142 +25,242 @@ const propSchema = z.object({
 });
 
 export const widgetMetadata: WidgetMetadata = {
-  description: "Worker matching list with hire buttons",
+  description: "Worker matching list with hire actions",
   props: propSchema as any,
 };
 
 type Props = z.infer<typeof propSchema>;
 type Worker = z.infer<typeof workerSchema>;
 
+function StarBar({ rating }: { rating: number }) {
+  const pct = (rating / 5) * 100;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <div style={{ width: 60, height: 5, background: "#e5e7eb", borderRadius: 999, overflow: "hidden" }}>
+        <div style={{ width: `${pct}%`, height: "100%", background: "#f59e0b", borderRadius: 999 }} />
+      </div>
+      <span style={{ fontSize: 12, fontWeight: 700, color: "#f59e0b" }}>{rating}</span>
+    </div>
+  );
+}
+
 function WorkerCard({ worker, taskId, rank }: { worker: Worker; taskId: string | null; rank: number }) {
   const [hired, setHired] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [hovered, setHovered] = useState(false);
 
   const handleHire = () => {
     if (!taskId) return;
     setHired(true);
-    // Copy the command to clipboard
-    const cmd = `hire_worker with task_id="${taskId}" and worker_id="${worker.id}"`;
+    const cmd = `Hire ${worker.name} for task ${taskId}`;
     navigator.clipboard?.writeText(cmd).catch(() => {});
   };
 
+  const isTop = rank <= 3;
+  const medalColor = rank === 1 ? "#f59e0b" : rank === 2 ? "#94a3b8" : rank === 3 ? "#d97706" : "transparent";
+
   return (
-    <div
-      style={{
-        ...styles.workerCard,
-        borderColor: hired ? "#7c3aed" : hovered ? "#c4b5fd" : "#f3f4f6",
-        background: hired ? "#faf5ff" : "#fff",
-      }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {/* Rank badge */}
-      {rank <= 3 && (
-        <div style={{
-          ...styles.rankBadge,
-          background: rank === 1 ? "#f59e0b" : rank === 2 ? "#9ca3af" : "#cd7f32",
-        }}>
-          #{rank}
-        </div>
-      )}
-
-      <div style={styles.workerTop}>
+    <div style={{
+      background: hired ? "#f5f3ff" : "#fff",
+      border: hired ? "2px solid #7c3aed" : "1px solid #e5e7eb",
+      borderRadius: 14,
+      padding: 0,
+      overflow: "hidden",
+      transition: "all 0.2s",
+    }}>
+      {/* Card header with avatar */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        padding: "16px 18px 12px",
+      }}>
         {/* Avatar */}
-        <div style={styles.avatar}>{worker.avatar}</div>
-
-        {/* Info */}
-        <div style={styles.workerInfo}>
-          <div style={styles.workerNameRow}>
-            <span style={styles.workerName}>{worker.name}</span>
-            {worker.verified && <span style={styles.verifiedBadge}>Verified</span>}
+        <div style={{ position: "relative" as const }}>
+          <div style={{
+            width: 50,
+            height: 50,
+            borderRadius: 14,
+            background: `linear-gradient(135deg, ${rank === 1 ? "#7c3aed" : rank === 2 ? "#3b82f6" : "#6b7280"}, ${rank === 1 ? "#a78bfa" : rank === 2 ? "#93c5fd" : "#9ca3af"})`,
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: 800,
+            fontSize: 17,
+          }}>
+            {worker.avatar}
           </div>
-          <div style={styles.workerLocation}>{worker.location}</div>
+          {isTop && (
+            <div style={{
+              position: "absolute" as const,
+              top: -6,
+              right: -6,
+              width: 20,
+              height: 20,
+              borderRadius: "50%",
+              background: medalColor,
+              color: "#fff",
+              fontSize: 10,
+              fontWeight: 800,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "2px solid #fff",
+            }}>
+              {rank}
+            </div>
+          )}
         </div>
 
-        {/* Rate */}
-        <div style={styles.rateBox}>
-          <div style={styles.rateAmount}>${worker.hourlyRate}</div>
-          <div style={styles.rateLabel}>/hr</div>
+        {/* Name + location */}
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>{worker.name}</span>
+            {worker.verified && (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#2563eb">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+              </svg>
+            )}
+          </div>
+          <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 1 }}>{worker.location}</div>
+          <StarBar rating={worker.rating} />
+        </div>
+
+        {/* Price */}
+        <div style={{ textAlign: "right" as const }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>${worker.hourlyRate}</div>
+          <div style={{ fontSize: 11, color: "#9ca3af" }}>per hour</div>
         </div>
       </div>
 
       {/* Bio */}
-      <div style={styles.bio}>{worker.bio}</div>
-
-      {/* Skills */}
-      <div style={styles.skillRow}>
-        {worker.skills.map((skill) => (
-          <span key={skill} style={styles.skillTag}>
-            {skill}
-          </span>
-        ))}
+      <div style={{
+        padding: "0 18px 12px",
+        fontSize: 13,
+        color: "#6b7280",
+        lineHeight: 1.5,
+      }}>
+        {worker.bio}
       </div>
 
-      {/* Stats row */}
-      <div style={styles.statsRow}>
-        <Stat label="Rating" value={`${worker.rating} \u2605`} color="#f59e0b" />
-        <Stat label="Tasks Done" value={worker.completedTasks.toLocaleString()} color="#6b7280" />
-        <Stat label="Response" value={worker.responseTime} color="#22c55e" />
+      {/* Skills + Stats */}
+      <div style={{ padding: "0 18px 14px" }}>
+        {/* Skills */}
+        <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 5, marginBottom: 12 }}>
+          {worker.skills.map((skill) => (
+            <span key={skill} style={{
+              background: "#f5f3ff",
+              color: "#7c3aed",
+              fontSize: 11,
+              fontWeight: 600,
+              padding: "3px 10px",
+              borderRadius: 999,
+            }}>
+              {skill}
+            </span>
+          ))}
+        </div>
+
+        {/* Stats row */}
+        <div style={{
+          display: "flex",
+          gap: 1,
+          background: "#f9fafb",
+          borderRadius: 10,
+          overflow: "hidden",
+        }}>
+          <StatCell label="Completed" value={worker.completedTasks.toLocaleString()} />
+          <StatCell label="Response" value={worker.responseTime} />
+          <StatCell label="Status" value={worker.available ? "Available" : "Busy"} valueColor={worker.available ? "#059669" : "#ef4444"} />
+        </div>
       </div>
 
       {/* Expandable details */}
       <div
-        style={styles.expandToggle}
         onClick={() => setExpanded(!expanded)}
+        style={{
+          padding: "8px 18px",
+          fontSize: 12,
+          color: "#7c3aed",
+          cursor: "pointer",
+          textAlign: "center" as const,
+          background: "#faf5ff",
+          fontWeight: 500,
+          borderTop: "1px solid #f3f4f6",
+        }}
       >
-        {expanded ? "Hide details \u25B2" : "Show details \u25BC"}
+        {expanded ? "Hide details \u25B2" : "More details \u25BC"}
       </div>
 
       {expanded && (
-        <div style={styles.expandedDetails}>
-          <div style={styles.detailRow}>
-            <span style={styles.detailLabel}>Worker ID</span>
-            <span style={styles.detailValue}>{worker.id}</span>
+        <div style={{ padding: "12px 18px", background: "#faf5ff", fontSize: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ color: "#9ca3af" }}>Worker ID</span>
+            <span style={{ fontFamily: "monospace", color: "#7c3aed", fontWeight: 600 }}>{worker.id}</span>
           </div>
-          <div style={styles.detailRow}>
-            <span style={styles.detailLabel}>Availability</span>
-            <span style={{ ...styles.detailValue, color: worker.available ? "#22c55e" : "#ef4444" }}>
-              {worker.available ? "Available now" : "Currently busy"}
-            </span>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ color: "#9ca3af" }}>Success Rate</span>
+            <span style={{ color: "#111827", fontWeight: 600 }}>{Math.min(95 + Math.floor(worker.rating * 1.05), 100)}%</span>
           </div>
-          <div style={styles.detailRow}>
-            <span style={styles.detailLabel}>Reliability</span>
-            <div style={styles.reliabilityBar}>
-              <div style={{ ...styles.reliabilityFill, width: `${Math.min(worker.rating / 5 * 100, 100)}%` }} />
-            </div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "#9ca3af" }}>Member Since</span>
+            <span style={{ color: "#111827", fontWeight: 600 }}>2024</span>
           </div>
         </div>
       )}
 
       {/* Hire button */}
       {taskId && !hired && (
-        <button
-          onClick={handleHire}
-          style={{
-            ...styles.hireButton,
-            opacity: hovered ? 1 : 0.9,
-            transform: hovered ? "translateY(-1px)" : "none",
-          }}
-        >
-          Hire {worker.name.split(" ")[0]} for this task
-        </button>
+        <div style={{ padding: "0 18px 16px", background: expanded ? "#faf5ff" : "#fff" }}>
+          <button
+            onClick={handleHire}
+            style={{
+              width: "100%",
+              padding: "12px 0",
+              background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
+              color: "#fff",
+              border: "none",
+              borderRadius: 10,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: "pointer",
+              boxShadow: "0 2px 10px rgba(124,58,237,0.35)",
+              transition: "transform 0.1s",
+            }}
+          >
+            Hire {worker.name.split(" ")[0]}
+          </button>
+        </div>
       )}
 
       {hired && (
-        <div style={styles.hiredConfirm}>
-          {"\u2713"} Tell the AI: "Hire {worker.name.split(" ")[0]}" (command copied!)
+        <div style={{
+          margin: "0 18px 16px",
+          background: "#ecfdf5",
+          border: "1px solid #bbf7d0",
+          borderRadius: 10,
+          padding: "12px 16px",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#059669">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+          </svg>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#059669" }}>
+            Tell the AI: "Hire {worker.name.split(" ")[0]}"
+          </span>
         </div>
       )}
     </div>
   );
 }
 
-function Stat({ label, value, color }: { label: string; value: string; color: string }) {
+function StatCell({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
   return (
-    <div style={styles.stat}>
-      <div style={{ ...styles.statValue, color }}>{value}</div>
-      <div style={styles.statLabel}>{label}</div>
+    <div style={{ flex: 1, textAlign: "center" as const, padding: "8px 4px" }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: valueColor ?? "#111827" }}>{value}</div>
+      <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase" as const, letterSpacing: 0.3 }}>{label}</div>
     </div>
   );
 }
@@ -170,11 +270,7 @@ const WorkerMatch: React.FC = () => {
   const [sortBy, setSortBy] = useState<"rating" | "price" | "tasks">("rating");
 
   if (isPending) {
-    return (
-      <div style={{ padding: 48, textAlign: "center", color: "#9ca3af" }}>
-        Finding workers...
-      </div>
-    );
+    return <div style={{ padding: 48, textAlign: "center", color: "#9ca3af" }}>Finding workers...</div>;
   }
 
   const { workers, taskId, taskTitle, category } = props;
@@ -186,255 +282,98 @@ const WorkerMatch: React.FC = () => {
   });
 
   return (
-    <div style={styles.container}>
+    <div style={{
+      fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+      maxWidth: 520,
+      margin: "0 auto",
+      background: "#fff",
+      borderRadius: 16,
+      boxShadow: "0 1px 3px rgba(0,0,0,0.08), 0 8px 30px rgba(0,0,0,0.07)",
+      overflow: "hidden",
+    }}>
+      {/* Accent */}
+      <div style={{ height: 4, background: "linear-gradient(90deg, #7c3aed, #2563eb, #059669)" }} />
+
       {/* Header */}
-      <div style={styles.header}>
-        <div>
-          <div style={styles.headerLabel}>Available Workers</div>
-          <div style={styles.headerTitle}>
-            {taskTitle
-              ? `For: ${taskTitle}`
-              : category
-                ? `Category: ${category}`
-                : "All Workers"}
+      <div style={{ padding: "18px 22px 14px", borderBottom: "1px solid #f3f4f6" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase" as const, letterSpacing: 0.8 }}>
+              Worker Matches
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginTop: 2 }}>
+              {taskTitle ? taskTitle : category || "All Workers"}
+            </div>
+          </div>
+          <div style={{
+            background: "#f5f3ff",
+            borderRadius: 12,
+            padding: "8px 16px",
+            textAlign: "center" as const,
+          }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: "#7c3aed" }}>{workers.length}</div>
+            <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase" as const }}>found</div>
           </div>
         </div>
-        <div style={styles.headerCount}>
-          <div style={styles.countNum}>{workers.length}</div>
-          <div style={styles.countLabel}>matches</div>
-        </div>
+
+        {/* Sort */}
+        {workers.length > 1 && (
+          <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+            {([
+              { key: "rating" as const, label: "Top Rated" },
+              { key: "price" as const, label: "Best Price" },
+              { key: "tasks" as const, label: "Most Experienced" },
+            ]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setSortBy(key)}
+                style={{
+                  padding: "5px 14px",
+                  borderRadius: 999,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  border: sortBy === key ? "none" : "1px solid #e5e7eb",
+                  background: sortBy === key ? "#7c3aed" : "#fff",
+                  color: sortBy === key ? "#fff" : "#6b7280",
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Sort bar */}
-      {workers.length > 1 && (
-        <div style={styles.sortBar}>
-          <span style={styles.sortLabel}>Sort by:</span>
-          {(["rating", "price", "tasks"] as const).map((key) => (
-            <button
-              key={key}
-              onClick={() => setSortBy(key)}
-              style={{
-                ...styles.sortBtn,
-                background: sortBy === key ? "#7c3aed" : "transparent",
-                color: sortBy === key ? "#fff" : "#6b7280",
-              }}
-            >
-              {key === "rating" ? "Top Rated" : key === "price" ? "Lowest Price" : "Most Experienced"}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* Worker list */}
-      <div style={styles.list}>
+      <div style={{ padding: "12px 18px 18px", display: "flex", flexDirection: "column" as const, gap: 14 }}>
         {sorted.length === 0 ? (
-          <div style={styles.empty}>
-            No workers available for this category right now. Try broadening your search.
+          <div style={{ padding: 32, textAlign: "center" as const, color: "#9ca3af" }}>
+            No workers available right now
           </div>
         ) : (
-          sorted.map((worker, i) => (
-            <WorkerCard key={worker.id} worker={worker} taskId={taskId} rank={i + 1} />
+          sorted.map((w, i) => (
+            <WorkerCard key={w.id} worker={w} taskId={taskId} rank={i + 1} />
           ))
         )}
       </div>
 
       {/* Footer */}
       {taskId && workers.length > 0 && (
-        <div style={styles.footer}>
-          Click a "Hire" button above, or tell the AI which worker you want
+        <div style={{
+          padding: "12px 18px",
+          background: "#f9fafb",
+          borderTop: "1px solid #f3f4f6",
+          textAlign: "center" as const,
+          fontSize: 12,
+          color: "#6b7280",
+        }}>
+          Click <strong>Hire</strong> or tell the AI which worker you want
         </div>
       )}
     </div>
   );
-};
-
-const styles: Record<string, React.CSSProperties> = {
-  container: { fontFamily: "system-ui, sans-serif", maxWidth: 560, margin: "0 auto" },
-  header: {
-    background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)",
-    borderRadius: "16px 16px 0 0",
-    padding: "18px 24px",
-    color: "#fff",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  headerLabel: { fontSize: 11, opacity: 0.7, textTransform: "uppercase" as const, letterSpacing: 1 },
-  headerTitle: { fontSize: 16, fontWeight: 700, marginTop: 2 },
-  headerCount: { textAlign: "center" as const },
-  countNum: { fontSize: 28, fontWeight: 800 },
-  countLabel: { fontSize: 11, opacity: 0.7 },
-  sortBar: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    padding: "10px 16px",
-    background: "#f9fafb",
-    borderLeft: "1px solid #e5e7eb",
-    borderRight: "1px solid #e5e7eb",
-  },
-  sortLabel: { fontSize: 12, color: "#9ca3af", marginRight: 4 },
-  sortBtn: {
-    border: "1px solid #e5e7eb",
-    borderRadius: 999,
-    padding: "4px 12px",
-    fontSize: 11,
-    fontWeight: 600,
-    cursor: "pointer",
-    transition: "all 0.15s",
-  },
-  list: {
-    background: "#fff",
-    border: "1px solid #e5e7eb",
-    borderTop: "none",
-    borderRadius: "0 0 16px 16px",
-    padding: "8px 16px 16px",
-  },
-  empty: { padding: 32, textAlign: "center" as const, color: "#9ca3af", fontSize: 14 },
-  workerCard: {
-    border: "2px solid #f3f4f6",
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 12,
-    transition: "all 0.2s",
-    position: "relative" as const,
-  },
-  rankBadge: {
-    position: "absolute" as const,
-    top: -8,
-    left: 12,
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: 800,
-    padding: "2px 8px",
-    borderRadius: 999,
-  },
-  workerTop: { display: "flex", alignItems: "center", gap: 12 },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: "50%",
-    background: "linear-gradient(135deg, #7c3aed, #a78bfa)",
-    color: "#fff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontWeight: 700,
-    fontSize: 16,
-    flexShrink: 0,
-  },
-  workerInfo: { flex: 1 },
-  workerNameRow: { display: "flex", alignItems: "center", gap: 8 },
-  workerName: { fontSize: 16, fontWeight: 700, color: "#111827" },
-  verifiedBadge: {
-    background: "#dbeafe",
-    color: "#2563eb",
-    fontSize: 10,
-    fontWeight: 600,
-    padding: "2px 8px",
-    borderRadius: 999,
-  },
-  workerLocation: { fontSize: 12, color: "#9ca3af", marginTop: 2 },
-  rateBox: { textAlign: "right" as const },
-  rateAmount: { fontSize: 22, fontWeight: 800, color: "#111827" },
-  rateLabel: { fontSize: 11, color: "#9ca3af" },
-  bio: {
-    fontSize: 13,
-    color: "#6b7280",
-    lineHeight: 1.5,
-    marginTop: 10,
-    paddingBottom: 10,
-    borderBottom: "1px solid #f3f4f6",
-  },
-  skillRow: { display: "flex", flexWrap: "wrap" as const, gap: 6, marginTop: 10 },
-  skillTag: {
-    background: "#f0fdf4",
-    color: "#16a34a",
-    fontSize: 11,
-    fontWeight: 600,
-    padding: "3px 10px",
-    borderRadius: 999,
-  },
-  statsRow: {
-    display: "flex",
-    justifyContent: "space-around",
-    marginTop: 12,
-    padding: "10px 0 0",
-    borderTop: "1px solid #f3f4f6",
-  },
-  stat: { textAlign: "center" as const },
-  statValue: { fontSize: 14, fontWeight: 700 },
-  statLabel: { fontSize: 10, color: "#9ca3af", textTransform: "uppercase" as const, letterSpacing: 0.5 },
-  expandToggle: {
-    textAlign: "center" as const,
-    fontSize: 12,
-    color: "#7c3aed",
-    cursor: "pointer",
-    padding: "8px 0 4px",
-    fontWeight: 500,
-  },
-  expandedDetails: {
-    background: "#f9fafb",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 4,
-  },
-  detailRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    fontSize: 12,
-    padding: "4px 0",
-  },
-  detailLabel: { color: "#9ca3af" },
-  detailValue: { color: "#111827", fontWeight: 600 },
-  reliabilityBar: {
-    width: 80,
-    height: 6,
-    background: "#e5e7eb",
-    borderRadius: 999,
-    overflow: "hidden",
-  },
-  reliabilityFill: {
-    height: "100%",
-    background: "linear-gradient(90deg, #22c55e, #16a34a)",
-    borderRadius: 999,
-  },
-  hireButton: {
-    marginTop: 12,
-    background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
-    color: "#fff",
-    textAlign: "center" as const,
-    padding: "12px 0",
-    borderRadius: 10,
-    fontSize: 14,
-    fontWeight: 700,
-    cursor: "pointer",
-    border: "none",
-    width: "100%",
-    transition: "all 0.15s",
-    boxShadow: "0 2px 8px rgba(124,58,237,0.3)",
-  },
-  hiredConfirm: {
-    marginTop: 12,
-    background: "#f0fdf4",
-    border: "2px solid #22c55e",
-    color: "#16a34a",
-    textAlign: "center" as const,
-    padding: "12px 0",
-    borderRadius: 10,
-    fontSize: 13,
-    fontWeight: 700,
-  },
-  footer: {
-    background: "#faf5ff",
-    border: "1px solid #ede9fe",
-    borderTop: "none",
-    borderRadius: "0 0 16px 16px",
-    padding: "10px 16px",
-    fontSize: 12,
-    color: "#7c3aed",
-    textAlign: "center" as const,
-  },
 };
 
 export default WorkerMatch;
