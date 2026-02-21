@@ -33,375 +33,248 @@ const propSchema = z.object({
 });
 
 export const widgetMetadata: WidgetMetadata = {
-  description: "Task detail with status, proof viewer, and timeline",
+  description: "Task detail view",
   props: propSchema as any,
 };
 
 type Props = z.infer<typeof propSchema>;
 
-const STATUS: Record<string, { label: string; color: string; bg: string; pct: number }> = {
-  open: { label: "Open", color: "#f59e0b", bg: "#fffbeb", pct: 10 },
-  matching: { label: "Matching", color: "#f59e0b", bg: "#fffbeb", pct: 20 },
-  hired: { label: "Hired", color: "#3b82f6", bg: "#eff6ff", pct: 35 },
-  in_progress: { label: "In Progress", color: "#7c3aed", bg: "#f5f3ff", pct: 55 },
-  proof_submitted: { label: "Proof Submitted", color: "#f97316", bg: "#fff7ed", pct: 75 },
-  approved: { label: "Approved", color: "#059669", bg: "#ecfdf5", pct: 90 },
-  completed: { label: "Completed", color: "#059669", bg: "#ecfdf5", pct: 100 },
-  disputed: { label: "Disputed", color: "#ef4444", bg: "#fef2f2", pct: 75 },
+const STATUS_MAP: Record<string, { label: string; step: number }> = {
+  open: { label: "Open", step: 0 },
+  matching: { label: "Matching", step: 0 },
+  hired: { label: "Hired", step: 1 },
+  in_progress: { label: "In Progress", step: 2 },
+  proof_submitted: { label: "Review", step: 3 },
+  approved: { label: "Done", step: 4 },
+  completed: { label: "Done", step: 4 },
+  disputed: { label: "Disputed", step: 3 },
 };
 
-const STEPS = [
-  { key: "open", label: "Created" },
-  { key: "hired", label: "Hired" },
-  { key: "in_progress", label: "Working" },
-  { key: "proof_submitted", label: "Proof" },
-  { key: "completed", label: "Done" },
-];
+const STEPS = ["Created", "Hired", "Working", "Review", "Done"];
 
 const TaskDetail: React.FC = () => {
   const { props, isPending } = useWidget<Props>();
 
   if (isPending) {
-    return <div style={{ padding: 48, textAlign: "center", color: "#9ca3af" }}>Loading task...</div>;
+    return <div style={{ padding: 48, textAlign: "center", color: "#aaa", fontFamily: f }}>Loading...</div>;
   }
 
   const { task, worker } = props;
-  const st = STATUS[task.status] ?? STATUS.open;
-
-  // Figure out which step index we're at
-  const stepKeys = STEPS.map((s) => s.key);
-  const currentIdx = stepKeys.indexOf(task.status);
-  const activeStep = currentIdx >= 0 ? currentIdx : task.status === "matching" ? 0 : task.status === "approved" ? 4 : 2;
+  const st = STATUS_MAP[task.status] ?? { label: task.status, step: 0 };
 
   return (
     <div style={{
-      fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
-      maxWidth: 500,
+      fontFamily: f,
+      maxWidth: 480,
       margin: "0 auto",
       background: "#fff",
-      borderRadius: 16,
-      boxShadow: "0 1px 3px rgba(0,0,0,0.08), 0 8px 30px rgba(0,0,0,0.07)",
-      overflow: "hidden",
+      borderRadius: 12,
+      border: "1px solid #e8e8e8",
+      padding: "24px 28px",
     }}>
-      {/* Accent bar colored by status */}
-      <div style={{ height: 4, background: `linear-gradient(90deg, ${st.color}, ${st.color}88)` }} />
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <span style={{ fontSize: 12, color: "#bbb", fontFamily: "monospace" }}>{task.id}</span>
+        <span style={{
+          fontSize: 11,
+          fontWeight: 700,
+          color: task.status === "completed" ? "#22c55e" : task.status === "disputed" ? "#ef4444" : "#111",
+          background: task.status === "completed" ? "#f0fdf4" : task.status === "disputed" ? "#fef2f2" : "#f5f5f5",
+          padding: "3px 10px",
+          borderRadius: 4,
+        }}>
+          {st.label}
+        </span>
+      </div>
 
-      <div style={{ padding: "20px 24px 24px" }}>
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-          <div style={{ fontFamily: "monospace", fontSize: 12, color: "#9ca3af" }}>{task.id}</div>
-          <span style={{
-            background: st.bg,
-            color: st.color,
-            fontSize: 12,
-            fontWeight: 700,
-            padding: "4px 12px",
-            borderRadius: 999,
-          }}>
-            {st.label}
-          </span>
-        </div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: "#111", letterSpacing: -0.3, lineHeight: 1.3, marginBottom: 20 }}>
+        {task.title}
+      </div>
 
-        <div style={{ fontSize: 18, fontWeight: 800, color: "#111827", lineHeight: 1.3, marginBottom: 16 }}>
-          {task.title}
-        </div>
-
-        {/* Progress steps */}
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 20, gap: 0 }}>
-          {STEPS.map((step, i) => {
-            const done = i <= activeStep;
-            const isCurrent = i === activeStep;
-            return (
-              <div key={step.key} style={{ display: "flex", alignItems: "center", flex: i < STEPS.length - 1 ? 1 : 0 }}>
-                <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center" }}>
-                  <div style={{
-                    width: isCurrent ? 28 : 22,
-                    height: isCurrent ? 28 : 22,
-                    borderRadius: "50%",
-                    background: done ? st.color : "#e5e7eb",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transition: "all 0.3s",
-                    boxShadow: isCurrent ? `0 0 0 4px ${st.bg}` : "none",
-                  }}>
-                    {done && (
-                      <svg width="12" height="12" viewBox="0 0 20 20" fill="none">
-                        <path d="M6 10l3 3 5-5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    )}
-                  </div>
-                  <div style={{
-                    fontSize: 10,
-                    fontWeight: isCurrent ? 700 : 500,
-                    color: done ? st.color : "#9ca3af",
-                    marginTop: 4,
-                    whiteSpace: "nowrap" as const,
-                  }}>
-                    {step.label}
-                  </div>
-                </div>
-                {i < STEPS.length - 1 && (
-                  <div style={{
-                    flex: 1,
-                    height: 2,
-                    background: i < activeStep ? st.color : "#e5e7eb",
-                    margin: "0 4px",
-                    marginBottom: 18,
-                    borderRadius: 999,
-                    transition: "background 0.3s",
-                  }} />
+      {/* Progress */}
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 24, gap: 0 }}>
+        {STEPS.map((step, i) => (
+          <div key={step} style={{ display: "flex", alignItems: "center", flex: i < STEPS.length - 1 ? 1 : 0 }}>
+            <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center" }}>
+              <div style={{
+                width: i === st.step ? 24 : 18,
+                height: i === st.step ? 24 : 18,
+                borderRadius: "50%",
+                background: i <= st.step ? "#111" : "#e5e5e5",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all 0.2s",
+              }}>
+                {i < st.step && (
+                  <svg width="10" height="10" viewBox="0 0 20 20" fill="none">
+                    <path d="M6 10l3 3 5-5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
                 )}
+                {i === st.step && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff" }} />}
               </div>
-            );
-          })}
-        </div>
+              <div style={{ fontSize: 10, fontWeight: i === st.step ? 700 : 500, color: i <= st.step ? "#111" : "#ccc", marginTop: 4 }}>
+                {step}
+              </div>
+            </div>
+            {i < STEPS.length - 1 && (
+              <div style={{
+                flex: 1,
+                height: 2,
+                background: i < st.step ? "#111" : "#e5e5e5",
+                margin: "0 6px",
+                marginBottom: 18,
+                borderRadius: 999,
+              }} />
+            )}
+          </div>
+        ))}
+      </div>
 
-        {/* Info pills */}
-        <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 8, marginBottom: 16 }}>
-          <Pill label={task.category} />
-          <Pill label={task.location} />
-          <Pill label={task.deadline} />
-        </div>
+      {/* Meta */}
+      <div style={{ display: "flex", gap: 20, marginBottom: 20, fontSize: 13, color: "#666" }}>
+        <div><span style={lbl}>Category</span><br/>{task.category}</div>
+        <div><span style={lbl}>Location</span><br/>{task.location}</div>
+        <div><span style={lbl}>Deadline</span><br/>{task.deadline}</div>
+      </div>
 
-        {/* Worker card */}
-        {worker && (
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            padding: 14,
-            background: "#f9fafb",
-            borderRadius: 12,
-            marginBottom: 16,
-            border: "1px solid #f3f4f6",
-          }}>
+      {/* Worker */}
+      {worker && (
+        <>
+          <div style={divider} />
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
             <div style={{
-              width: 44,
-              height: 44,
-              borderRadius: 12,
-              background: "linear-gradient(135deg, #7c3aed, #a78bfa)",
+              width: 40,
+              height: 40,
+              borderRadius: 10,
+              background: "#111",
               color: "#fff",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               fontWeight: 700,
-              fontSize: 15,
+              fontSize: 14,
             }}>
               {worker.avatar}
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>{worker.name}</span>
-                {worker.verified && (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="#2563eb">
-                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-                  </svg>
-                )}
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#111" }}>
+                {worker.name}
+                {worker.verified && <span style={{ fontSize: 10, color: "#888", background: "#f5f5f5", padding: "1px 6px", borderRadius: 3, fontWeight: 600, marginLeft: 6 }}>Verified</span>}
               </div>
-              <div style={{ fontSize: 12, color: "#9ca3af" }}>
+              <div style={{ fontSize: 12, color: "#999" }}>
                 {worker.rating} \u2605 &middot; {worker.completedTasks} tasks &middot; {worker.responseTime}
               </div>
             </div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "#111827" }}>${worker.hourlyRate}/hr</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#111" }}>${worker.hourlyRate}/hr</div>
           </div>
-        )}
+        </>
+      )}
 
-        {/* Budget bar */}
-        <div style={{
-          display: "flex",
-          borderRadius: 12,
-          overflow: "hidden",
-          border: "1px solid #f3f4f6",
-          marginBottom: 16,
-        }}>
-          <BudgetCell label="Budget" value={`${task.budget} pts`} color="#111827" />
-          <BudgetCell label="Escrowed" value={`${task.pointsEscrowed} pts`} color="#7c3aed" />
-          <BudgetCell label="Paid" value={`${task.pointsPaid} pts`} color="#059669" />
-        </div>
-
-        {/* Proof section */}
-        {task.proof && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase" as const, letterSpacing: 0.8, marginBottom: 8 }}>
-              Submitted Proof
-            </div>
-            <div style={{
-              border: "1px solid #e5e7eb",
-              borderRadius: 12,
-              overflow: "hidden",
-            }}>
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "12px 14px",
-                background: "#f9fafb",
-              }}>
-                <div style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 8,
-                  background: "#3b82f6",
-                  color: "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9l-7-7z" stroke="#fff" strokeWidth="2"/>
-                    <path d="M13 2v7h7" stroke="#fff" strokeWidth="2"/>
-                  </svg>
-                </div>
-                <a href={task.proof.url} target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize: 13, color: "#3b82f6", fontWeight: 500, textDecoration: "none", wordBreak: "break-all" as const, flex: 1 }}>
-                  {task.proof.url}
-                </a>
-              </div>
-              {task.proof.notes && (
-                <div style={{ padding: "10px 14px", fontSize: 13, color: "#374151", borderTop: "1px solid #f3f4f6" }}>
-                  {task.proof.notes}
-                </div>
-              )}
-              {task.status === "proof_submitted" && (
-                <div style={{
-                  display: "flex",
-                  gap: 8,
-                  padding: "10px 14px",
-                  borderTop: "1px solid #f3f4f6",
-                  background: "#fffbeb",
-                }}>
-                  <div style={{
-                    flex: 1,
-                    textAlign: "center" as const,
-                    padding: "8px 0",
-                    background: "#059669",
-                    color: "#fff",
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}>
-                    Approve & Pay
-                  </div>
-                  <div style={{
-                    flex: 1,
-                    textAlign: "center" as const,
-                    padding: "8px 0",
-                    background: "#fff",
-                    color: "#6b7280",
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    border: "1px solid #e5e7eb",
-                    cursor: "pointer",
-                  }}>
-                    Request Changes
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Timeline */}
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase" as const, letterSpacing: 0.8, marginBottom: 10 }}>
-            Activity
-          </div>
-          <div style={{ paddingLeft: 16, position: "relative" as const }}>
-            {/* Vertical line */}
-            <div style={{
-              position: "absolute" as const,
-              left: 4,
-              top: 8,
-              bottom: 8,
-              width: 2,
-              background: "#f3f4f6",
-            }} />
-
-            {[...task.timeline].reverse().map((entry, i) => {
-              const isFirst = i === 0;
-              const actorColor =
-                entry.actor === "System" ? "#9ca3af" :
-                entry.actor === "AI Agent" ? "#7c3aed" : "#3b82f6";
-              return (
-                <div key={i} style={{
-                  position: "relative" as const,
-                  paddingLeft: 18,
-                  paddingBottom: i < task.timeline.length - 1 ? 14 : 0,
-                }}>
-                  <div style={{
-                    position: "absolute" as const,
-                    left: -1,
-                    top: 5,
-                    width: isFirst ? 12 : 8,
-                    height: isFirst ? 12 : 8,
-                    borderRadius: "50%",
-                    background: isFirst ? st.color : "#d1d5db",
-                    border: isFirst ? `3px solid ${st.bg}` : "none",
-                  }} />
-                  <div style={{ fontSize: 13, color: isFirst ? "#111827" : "#6b7280", fontWeight: isFirst ? 600 : 400 }}>
-                    {entry.event}
-                  </div>
-                  <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 1 }}>
-                    <span style={{ color: actorColor, fontWeight: 500 }}>{entry.actor}</span>
-                    {" \u00B7 "}
-                    {new Date(entry.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Next action hint */}
-        {task.status !== "completed" && (
-          <div style={{
-            marginTop: 16,
-            padding: "10px 14px",
-            background: "#eff6ff",
-            border: "1px solid #dbeafe",
-            borderRadius: 10,
-            fontSize: 13,
-            color: "#1e40af",
-          }}>
-            <strong>Next:</strong>{" "}
-            {task.status === "open" && "Find and hire a worker with list_workers"}
-            {task.status === "hired" && "Worker notified — waiting for them to start"}
-            {task.status === "in_progress" && "Worker is on it — they'll submit proof when done"}
-            {task.status === "proof_submitted" && "Review the proof and use review_and_pay to approve or request changes"}
-            {task.status === "matching" && "Matching you with workers..."}
-            {task.status === "disputed" && "Resolve the dispute with the worker"}
-          </div>
-        )}
+      {/* Budget */}
+      <div style={divider} />
+      <div style={{ display: "flex", marginBottom: 20 }}>
+        <NumCell label="Budget" value={`${task.budget}`} unit="pts" />
+        <NumCell label="Escrowed" value={`${task.pointsEscrowed}`} unit="pts" />
+        <NumCell label="Paid" value={`${task.pointsPaid}`} unit="pts" />
       </div>
+
+      {/* Proof */}
+      {task.proof && (
+        <>
+          <div style={divider} />
+          <div style={{ ...lbl, marginBottom: 8 }}>Proof</div>
+          <div style={{
+            border: "1px solid #eee",
+            borderRadius: 8,
+            padding: "12px 14px",
+            marginBottom: 20,
+          }}>
+            <a href={task.proof.url} target="_blank" rel="noopener noreferrer"
+              style={{ fontSize: 13, color: "#111", fontWeight: 500, wordBreak: "break-all" as const, textDecoration: "underline" }}>
+              {task.proof.url}
+            </a>
+            {task.proof.notes && (
+              <div style={{ fontSize: 13, color: "#666", marginTop: 8, lineHeight: 1.5 }}>
+                {task.proof.notes}
+              </div>
+            )}
+            {task.status === "proof_submitted" && (
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                <button style={{ ...btn, background: "#111", color: "#fff" }}>Approve & Pay</button>
+                <button style={{ ...btn, background: "#fff", color: "#666", border: "1px solid #ddd" }}>Request Changes</button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Timeline */}
+      <div style={divider} />
+      <div style={{ ...lbl, marginBottom: 10 }}>Activity</div>
+      <div style={{ paddingLeft: 14, position: "relative" as const }}>
+        <div style={{ position: "absolute" as const, left: 3, top: 6, bottom: 6, width: 1.5, background: "#eee" }} />
+        {[...task.timeline].reverse().map((entry, i) => {
+          const isFirst = i === 0;
+          return (
+            <div key={i} style={{ position: "relative" as const, paddingLeft: 16, paddingBottom: i < task.timeline.length - 1 ? 14 : 0 }}>
+              <div style={{
+                position: "absolute" as const,
+                left: -3,
+                top: 5,
+                width: isFirst ? 10 : 7,
+                height: isFirst ? 10 : 7,
+                borderRadius: "50%",
+                background: isFirst ? "#111" : "#ddd",
+                border: isFirst ? "2px solid #e5e5e5" : "none",
+              }} />
+              <div style={{ fontSize: 13, color: isFirst ? "#111" : "#888", fontWeight: isFirst ? 600 : 400 }}>
+                {entry.event}
+              </div>
+              <div style={{ fontSize: 11, color: "#ccc", marginTop: 1 }}>
+                {entry.actor} &middot; {new Date(entry.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Next action */}
+      {task.status !== "completed" && (
+        <div style={{
+          marginTop: 20,
+          padding: "10px 14px",
+          background: "#fafafa",
+          borderRadius: 8,
+          fontSize: 13,
+          color: "#666",
+          border: "1px solid #f0f0f0",
+        }}>
+          <strong style={{ color: "#111" }}>Next:</strong>{" "}
+          {task.status === "open" && "Find and hire a worker"}
+          {task.status === "hired" && "Waiting for worker to start"}
+          {task.status === "in_progress" && "Worker is on it \u2014 proof coming soon"}
+          {task.status === "proof_submitted" && "Review proof above, then approve or request changes"}
+          {task.status === "matching" && "Finding a match..."}
+          {task.status === "disputed" && "Resolve with worker"}
+        </div>
+      )}
     </div>
   );
 };
 
-function Pill({ label }: { label: string }) {
+function NumCell({ label, value, unit }: { label: string; value: string; unit: string }) {
   return (
-    <span style={{
-      background: "#f3f4f6",
-      color: "#6b7280",
-      fontSize: 12,
-      fontWeight: 500,
-      padding: "4px 10px",
-      borderRadius: 999,
-    }}>
-      {label}
-    </span>
-  );
-}
-
-function BudgetCell({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <div style={{ flex: 1, textAlign: "center" as const, padding: "12px 8px", background: "#f9fafb" }}>
-      <div style={{ fontSize: 16, fontWeight: 800, color }}>{value}</div>
-      <div style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase" as const }}>{label}</div>
+    <div style={{ flex: 1, textAlign: "center" as const }}>
+      <div style={{ fontSize: 20, fontWeight: 700, color: "#111" }}>{value}<span style={{ fontSize: 12, fontWeight: 500, color: "#bbb", marginLeft: 3 }}>{unit}</span></div>
+      <div style={{ fontSize: 10, color: "#aaa", textTransform: "uppercase" as const, letterSpacing: 0.4 }}>{label}</div>
     </div>
   );
 }
+
+const f = "'Inter', system-ui, -apple-system, sans-serif";
+const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: "#aaa", textTransform: "uppercase", letterSpacing: 0.6 };
+const divider: React.CSSProperties = { height: 1, background: "#f0f0f0", margin: "0 0 20px" };
+const btn: React.CSSProperties = { flex: 1, padding: "8px 0", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none", textAlign: "center" };
 
 export default TaskDetail;
