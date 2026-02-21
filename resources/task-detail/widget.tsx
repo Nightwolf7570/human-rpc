@@ -133,9 +133,18 @@ const TaskDetail: React.FC = () => {
 
       {/* Meta */}
       <div style={{ display: "flex", gap: 20, marginBottom: 20, fontSize: 13, color: "#666" }}>
-        <div><span style={lbl}>Category</span><br/>{task.category}</div>
-        <div><span style={lbl}>Location</span><br/>{task.location}</div>
-        <div><span style={lbl}>Deadline</span><br/>{task.deadline}</div>
+        <div>
+          <div style={lbl}>Category</div>
+          <div>{task.category}</div>
+        </div>
+        <div>
+          <div style={lbl}>Location</div>
+          <div>{task.location}</div>
+        </div>
+        <div>
+          <div style={lbl}>Deadline</div>
+          <div>{task.deadline}</div>
+        </div>
       </div>
 
       {/* Worker */}
@@ -273,7 +282,7 @@ function NumCell({ label, value, unit }: { label: string; value: string; unit: s
 }
 
 const f = "'Inter', system-ui, -apple-system, sans-serif";
-const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: "#aaa", textTransform: "uppercase", letterSpacing: 0.6 };
+const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: "#aaa", textTransform: "uppercase" as const, letterSpacing: 0.6, marginBottom: 2 };
 const divider: React.CSSProperties = { height: 1, background: "#f0f0f0", margin: "0 0 20px" };
 const btn: React.CSSProperties = { flex: 1, padding: "8px 0", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none", textAlign: "center" };
 

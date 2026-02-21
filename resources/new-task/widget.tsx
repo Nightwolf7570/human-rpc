@@ -57,9 +57,18 @@ const NewTask: React.FC = () => {
 
       {/* Meta */}
       <div style={{ display: "flex", gap: 20, marginBottom: 20, fontSize: 13, color: "#666" }}>
-        <div><span style={label}>Category</span><br/>{task.category}</div>
-        <div><span style={label}>Location</span><br/>{task.location}</div>
-        <div><span style={label}>Deadline</span><br/>{task.deadline}</div>
+        <div>
+          <div style={label}>Category</div>
+          <div>{task.category}</div>
+        </div>
+        <div>
+          <div style={label}>Location</div>
+          <div>{task.location}</div>
+        </div>
+        <div>
+          <div style={label}>Deadline</div>
+          <div>{task.deadline}</div>
+        </div>
       </div>
 
       {/* Divider */}
@@ -114,8 +123,9 @@ const label: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
   color: "#aaa",
-  textTransform: "uppercase",
+  textTransform: "uppercase" as const,
   letterSpacing: 0.6,
+  marginBottom: 2,
 };
 const divider: React.CSSProperties = {
   height: 1,
