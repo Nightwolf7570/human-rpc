@@ -23,7 +23,7 @@ interface Worker {
   completedTasks: number;
   skills: string[];
   location: string;
-  hourlyRate: number;
+  tokenRate: number;
   available: boolean;
   responseTime: string;
   bio: string;
@@ -39,7 +39,7 @@ const WORKERS: Worker[] = [
     completedTasks: 347,
     skills: ["Photography", "Real Estate", "Inspections"],
     location: "San Francisco, CA",
-    hourlyRate: 35,
+    tokenRate: 35,
     available: true,
     responseTime: "< 15 min",
     bio: "Professional photographer with 5 years of real estate experience. Own DSLR + drone.",
@@ -53,7 +53,7 @@ const WORKERS: Worker[] = [
     completedTasks: 512,
     skills: ["Delivery", "Errands", "Queue Waiting", "Shopping"],
     location: "San Francisco, CA",
-    hourlyRate: 25,
+    tokenRate: 25,
     available: true,
     responseTime: "< 10 min",
     bio: "Reliable runner. Have a car and bike. Available most days 8am-8pm.",
@@ -67,7 +67,7 @@ const WORKERS: Worker[] = [
     completedTasks: 189,
     skills: ["Marketing", "Flyering", "Event Staffing", "Street Teams"],
     location: "Oakland, CA",
-    hourlyRate: 28,
+    tokenRate: 28,
     available: true,
     responseTime: "< 30 min",
     bio: "Marketing student at UC Berkeley. Great with people, always on time.",
@@ -81,7 +81,7 @@ const WORKERS: Worker[] = [
     completedTasks: 94,
     skills: ["Installation", "Hardware", "Assembly", "Signage"],
     location: "San Jose, CA",
-    hourlyRate: 45,
+    tokenRate: 45,
     available: true,
     responseTime: "< 1 hour",
     bio: "Handyman with full tool kit. Electrical, mounting, assembly, you name it.",
@@ -95,7 +95,7 @@ const WORKERS: Worker[] = [
     completedTasks: 276,
     skills: ["Mystery Shopping", "Research", "Inspections", "Documentation"],
     location: "Palo Alto, CA",
-    hourlyRate: 30,
+    tokenRate: 30,
     available: false,
     responseTime: "< 2 hours",
     bio: "Detail-oriented researcher. Excellent written reports with photo evidence.",
@@ -109,7 +109,7 @@ const WORKERS: Worker[] = [
     completedTasks: 631,
     skills: ["Delivery", "Errands", "Queue Waiting", "Notarization"],
     location: "San Francisco, CA",
-    hourlyRate: 22,
+    tokenRate: 22,
     available: true,
     responseTime: "< 5 min",
     bio: "Full-time gig worker. Fastest response time on the platform. Never missed a deadline.",
@@ -123,7 +123,7 @@ const WORKERS: Worker[] = [
     completedTasks: 158,
     skills: ["Photography", "Videography", "Social Media", "Marketing"],
     location: "Berkeley, CA",
-    hourlyRate: 40,
+    tokenRate: 40,
     available: true,
     responseTime: "< 20 min",
     bio: "Content creator & photographer. Specialize in property tours and product shots.",
@@ -137,7 +137,7 @@ const WORKERS: Worker[] = [
     completedTasks: 82,
     skills: ["Billboard", "Advertising", "Signage", "Negotiations"],
     location: "San Francisco, CA",
-    hourlyRate: 50,
+    tokenRate: 50,
     available: true,
     responseTime: "< 1 hour",
     bio: "Former ad sales rep. Know every billboard vendor in the Bay Area.",
@@ -342,7 +342,7 @@ server.tool(
           workers
             .map(
               (w) =>
-                `- **${w.name}** (${w.id}) | ${w.rating} stars | ${w.completedTasks} tasks | $${w.hourlyRate}/hr | ${w.responseTime}\n  Skills: ${w.skills.join(", ")}`
+                `- **${w.name}** (${w.id}) | ${w.rating} stars | ${w.completedTasks} tasks | ${w.tokenRate} tokens | ${w.responseTime}\n  Skills: ${w.skills.join(", ")}`
             )
             .join("\n") +
           (task_id ? `\n\nUse \`hire_worker\` with task_id="${task_id}" and worker_id to hire.` : "")

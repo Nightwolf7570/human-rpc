@@ -10,7 +10,7 @@ const workerSchema = z.object({
   completedTasks: z.number(),
   skills: z.array(z.string()),
   location: z.string(),
-  hourlyRate: z.number(),
+  tokenRate: z.number(),
   available: z.boolean(),
   responseTime: z.string(),
   bio: z.string(),
@@ -56,8 +56,8 @@ function WorkerCard({ worker, taskId, rank }: { worker: Worker; taskId: string |
           {worker.verified && <span style={styles.verifiedBadge}>✓</span>}
         </div>
         <div style={styles.rateContainer}>
-          <span style={styles.rateAmount}>${worker.hourlyRate}</span>
-          <span style={styles.rateUnit}>/hr</span>
+          <span style={styles.rateAmount}>{worker.tokenRate}</span>
+          <span style={styles.rateUnit}>tokens</span>
         </div>
       </div>
 
@@ -155,7 +155,7 @@ const WorkerMatch: React.FC = () => {
 
   const sorted = [...workers].sort((a, b) => {
     if (sortBy === "rating") return b.rating - a.rating;
-    if (sortBy === "price") return a.hourlyRate - b.hourlyRate;
+    if (sortBy === "price") return a.tokenRate - b.tokenRate;
     return b.completedTasks - a.completedTasks;
   });
 
