@@ -842,31 +842,21 @@ server.app.get("/api/worker-response", async (c) => {
       actor: worker.name,
     });
 
-    // Create Dropbox file request now that worker accepted
-    const dbx = await createDropboxFileRequest(entry.taskId, task.title);
-    if (dbx) {
-      task.dropboxUploadUrl = dbx.url;
-      task.dropboxPath = dbx.path;
-      task.timeline.push({ time: now(), event: `Dropbox upload link created`, actor: "System" });
-    } else {
-      console.error("Dropbox file request failed for task", entry.taskId);
-    }
-
-    // Send follow-up email with Dropbox upload link and full instructions
+    // Email 2: Job accepted confirmation
     const resend = getResend();
     if (resend && worker.email) {
       try {
         await resend.emails.send({
           from: "HumanRPC <onboarding@resend.dev>",
           to: [worker.email],
-          subject: `You're on! Upload proof for: ${task.title}`,
+          subject: `Job accepted: ${task.title}`,
           html: `
             <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px">
               <div style="text-align:center;margin-bottom:24px">
                 <div style="display:inline-block;width:48px;height:48px;background:#22c55e;border-radius:50%;line-height:48px;font-size:24px;color:#fff">&#10003;</div>
               </div>
               <h2 style="color:#111;text-align:center;margin-bottom:4px">You're on the job!</h2>
-              <p style="color:#666;font-size:14px;text-align:center;margin-top:0">Here's everything you need to complete <strong>${task.title}</strong>.</p>
+              <p style="color:#666;font-size:14px;text-align:center;margin-top:0">You accepted <strong>${task.title}</strong>. A separate email with your Dropbox upload link is on the way.</p>
               <div style="background:#fafafa;border-radius:10px;padding:20px;margin:20px 0">
                 <div style="font-size:18px;font-weight:700;color:#111;margin-bottom:12px">${task.title}</div>
                 <div style="font-size:13px;color:#666;margin-bottom:6px"><strong>Location:</strong> ${task.location}</div>
@@ -878,21 +868,71 @@ server.app.get("/api/worker-response", async (c) => {
                 <div style="font-size:12px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Instructions</div>
                 <div style="font-size:14px;color:#333;line-height:1.6;white-space:pre-line">${task.instructions}</div>
               </div>
-              ${task.dropboxUploadUrl ? `
-              <div style="margin-bottom:20px">
-                <div style="font-size:12px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Upload Your Proof</div>
-                <p style="font-size:14px;color:#333;margin:0 0 12px 0">When you're done, upload your photos/files here:</p>
-                <a href="${task.dropboxUploadUrl}" style="display:block;text-align:center;padding:16px;background:#0061FF;border-radius:10px;color:#fff;font-weight:700;font-size:16px;text-decoration:none">Upload to Dropbox</a>
-              </div>` : ""}
               <div style="background:#fffbeb;border-radius:10px;padding:16px;margin-bottom:20px">
                 <div style="font-size:13px;color:#92400e"><strong>Reminder:</strong> Upload your proof before the deadline. Payment is released once the client approves your work.</div>
               </div>
               <p style="font-size:12px;color:#aaa;text-align:center;margin-top:20px">HumanRPC — Remote Procedure Calls to Real Humans</p>
             </div>`,
         });
-        task.timeline.push({ time: now(), event: `Proof upload email sent to ${worker.name}`, actor: "System" });
+        console.log("Accept confirmation email sent to", worker.email);
+        task.timeline.push({ time: now(), event: `Accept confirmation email sent to ${worker.name}`, actor: "System" });
       } catch (err: any) {
-        task.timeline.push({ time: now(), event: `Proof upload email failed: ${err.message ?? "unknown"}`, actor: "System" });
+        console.error("Accept email failed:", err.message);
+        task.timeline.push({ time: now(), event: `Accept email failed: ${err.message ?? "unknown"}`, actor: "System" });
+      }
+    }
+
+    // Email 3: Separate Dropbox upload email — always sent
+    let dropboxUrl = "";
+    try {
+      console.log("Creating Dropbox file request for task", entry.taskId);
+      const dbx = await createDropboxFileRequest(entry.taskId, task.title);
+      if (dbx) {
+        task.dropboxUploadUrl = dbx.url;
+        task.dropboxPath = dbx.path;
+        dropboxUrl = dbx.url;
+        console.log("Dropbox file request created:", dropboxUrl);
+        task.timeline.push({ time: now(), event: `Dropbox upload link created`, actor: "System" });
+      } else {
+        console.error("Dropbox file request returned null for task", entry.taskId);
+      }
+    } catch (err: any) {
+      console.error("Dropbox file request threw:", err.message);
+    }
+
+    if (resend && worker.email) {
+      try {
+        await resend.emails.send({
+          from: "HumanRPC <onboarding@resend.dev>",
+          to: [worker.email],
+          subject: `Upload your proof: ${task.title}`,
+          html: `
+            <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px">
+              <div style="text-align:center;margin-bottom:24px">
+                <div style="display:inline-block;width:56px;height:56px;background:#0061FF;border-radius:12px;line-height:56px;font-size:28px;color:#fff">&#9729;</div>
+              </div>
+              <h2 style="color:#111;text-align:center;margin-bottom:4px">Upload Your Proof</h2>
+              <p style="color:#666;font-size:14px;text-align:center;margin-top:0">Upload photos and files for <strong>${task.title}</strong></p>
+              <div style="margin:24px 0">
+                ${dropboxUrl
+                  ? `<a href="${dropboxUrl}" style="display:block;text-align:center;padding:18px;background:#0061FF;border-radius:10px;color:#fff;font-weight:700;font-size:18px;text-decoration:none">Upload to Dropbox</a>`
+                  : `<div style="text-align:center;padding:18px;background:#f5f5f5;border-radius:10px;color:#666;font-size:14px">Dropbox link unavailable — reply to this email with your proof files instead.</div>`
+                }
+              </div>
+              <div style="background:#fafafa;border-radius:10px;padding:16px;margin-bottom:20px;text-align:left">
+                <div style="font-size:13px;color:#666;margin-bottom:4px"><strong>Task:</strong> ${task.title}</div>
+                <div style="font-size:13px;color:#666;margin-bottom:4px"><strong>Task ID:</strong> ${task.id}</div>
+                <div style="font-size:13px;color:#666;margin-bottom:4px"><strong>Deadline:</strong> ${task.deadline}</div>
+                <div style="font-size:13px;color:#666"><strong>Budget:</strong> ${task.budget} points</div>
+              </div>
+              <p style="font-size:12px;color:#aaa;text-align:center">HumanRPC — Remote Procedure Calls to Real Humans</p>
+            </div>`,
+        });
+        console.log("Dropbox upload email sent to", worker.email);
+        task.timeline.push({ time: now(), event: `Dropbox upload email sent to ${worker.name}`, actor: "System" });
+      } catch (err: any) {
+        console.error("Dropbox email failed:", err.message);
+        task.timeline.push({ time: now(), event: `Dropbox upload email failed: ${err.message ?? "unknown"}`, actor: "System" });
       }
     }
 
@@ -901,14 +941,12 @@ server.app.get("/api/worker-response", async (c) => {
         <div style="font-size:48px;margin-bottom:16px">&#9989;</div>
         <h2 style="color:#22c55e">Job Accepted!</h2>
         <p style="color:#666">Thanks, ${worker.name}! You've accepted <strong>${task.title}</strong>.</p>
-        <p style="color:#666">Check your email for instructions and the Dropbox upload link.</p>
+        <p style="color:#666">Check your email — we sent you a <strong>Dropbox upload link</strong> for your proof.</p>
         <div style="background:#fafafa;border-radius:10px;padding:16px;margin-top:20px;text-align:left">
           <div style="font-size:13px;color:#666;margin-bottom:4px"><strong>Task ID:</strong> ${task.id}</div>
           <div style="font-size:13px;color:#666;margin-bottom:4px"><strong>Deadline:</strong> ${task.deadline}</div>
           <div style="font-size:13px;color:#666"><strong>Budget:</strong> ${task.budget} points</div>
         </div>
-        ${task.dropboxUploadUrl ? `
-        <a href="${task.dropboxUploadUrl}" style="display:block;text-align:center;padding:14px;background:#0061FF;border-radius:8px;color:#fff;font-weight:700;font-size:14px;text-decoration:none;margin-top:16px">Upload Proof to Dropbox</a>` : ""}
       </div>`
     );
   } else {
