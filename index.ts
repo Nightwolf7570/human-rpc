@@ -480,16 +480,6 @@ server.tool(
     const responseToken = crypto.randomUUID();
     RESPONSE_TOKENS.set(responseToken, { taskId: task_id, workerId: worker.id });
 
-    // Create Dropbox file request for proof uploads
-    let dropboxStatus = "skipped (no token)";
-    const dbx = await createDropboxFileRequest(task_id, task.title);
-    if (dbx) {
-      task.dropboxUploadUrl = dbx.url;
-      task.dropboxPath = dbx.path;
-      dropboxStatus = "upload link created";
-      task.timeline.push({ time: now(), event: `Dropbox upload link created`, actor: "System" });
-    }
-
     // Send notifications (include accept/decline links)
     const notify = await notifyWorker(worker, task, responseToken);
 
@@ -509,7 +499,6 @@ server.tool(
         `**Worker:** ${worker.name} (${worker.rating} stars, ${worker.completedTasks} completed)\n` +
         `**Budget:** ${task.budget} pts (escrowed)\n` +
         `**Response time:** ${worker.responseTime}\n` +
-        `**Dropbox:** ${dropboxStatus}${task.dropboxUploadUrl ? `\n**Upload link:** ${task.dropboxUploadUrl}` : ""}\n` +
         `**SMS:** ${notify.sms}\n` +
         `**Email:** ${notify.email}\n\n` +
         `Waiting for worker to **accept or decline** via email. Use \`get_task_status\` to check their response.`
@@ -852,6 +841,16 @@ server.app.get("/api/worker-response", async (c) => {
       event: `${worker.name} accepted the job`,
       actor: worker.name,
     });
+
+    // Create Dropbox file request now that worker accepted
+    const dbx = await createDropboxFileRequest(entry.taskId, task.title);
+    if (dbx) {
+      task.dropboxUploadUrl = dbx.url;
+      task.dropboxPath = dbx.path;
+      task.timeline.push({ time: now(), event: `Dropbox upload link created`, actor: "System" });
+    } else {
+      console.error("Dropbox file request failed for task", entry.taskId);
+    }
 
     // Send follow-up email with Dropbox upload link and full instructions
     const resend = getResend();
