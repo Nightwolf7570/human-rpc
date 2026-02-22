@@ -882,6 +882,9 @@ server.app.get("/api/worker-response", async (c) => {
       }
     }
 
+    // Small delay to avoid Resend rate limit (2 req/sec)
+    await new Promise((r) => setTimeout(r, 1500));
+
     // Email 3: Separate Dropbox upload email — always sent
     let dropboxUrl = "";
     try {
