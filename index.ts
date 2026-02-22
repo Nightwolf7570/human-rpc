@@ -33,9 +33,8 @@ async function notifyWorker(worker: Worker, task: Task, responseToken?: string):
   const tw = getTwilio();
   if (tw && worker.phone) {
     try {
-      const uploadLine = task.dropboxUploadUrl ? `\n\nUpload proof here: ${task.dropboxUploadUrl}` : "";
       await tw.client.messages.create({
-        body: `HumanRPC: You've been hired!\n\nTask: ${task.title}\nLocation: ${task.location}\nDeadline: ${task.deadline}\nBudget: ${task.budget} pts\n\nInstructions:\n${task.instructions}\n\nTask ID: ${task.id}${uploadLine}`,
+        body: `HumanRPC: You've been hired!\n\nTask: ${task.title}\nLocation: ${task.location}\nDeadline: ${task.deadline}\nBudget: ${task.budget} pts\n\nInstructions:\n${task.instructions}\n\nTask ID: ${task.id}\n\nReply to this text or check your email to accept or decline.`,
         from: tw.from,
         to: worker.phone,
       });
@@ -73,11 +72,6 @@ async function notifyWorker(worker: Worker, task: Task, responseToken?: string):
               <div style="font-size:12px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Do you accept this job?</div>
               <a href="${baseUrl}/api/worker-response?token=${responseToken}&action=accept" style="display:inline-block;padding:14px 32px;background:#22c55e;border-radius:8px;color:#fff;font-weight:700;font-size:16px;text-decoration:none;margin-right:12px">Accept Job</a>
               <a href="${baseUrl}/api/worker-response?token=${responseToken}&action=decline" style="display:inline-block;padding:14px 32px;background:#ef4444;border-radius:8px;color:#fff;font-weight:700;font-size:16px;text-decoration:none">Decline</a>
-            </div>` : ""}
-            ${task.dropboxUploadUrl ? `
-            <div style="margin-bottom:20px">
-              <div style="font-size:12px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Upload Proof</div>
-              <a href="${task.dropboxUploadUrl}" style="display:block;text-align:center;padding:14px;background:#0061FF;border-radius:8px;color:#fff;font-weight:700;font-size:14px;text-decoration:none">Upload files to Dropbox</a>
             </div>` : ""}
             <div style="text-align:center;padding:16px;background:#111;border-radius:8px">
               <span style="color:#fff;font-weight:700;font-size:14px">Task ID: ${task.id}</span>
